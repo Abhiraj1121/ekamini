@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no" />
+<meta name="theme-color" content="#0A0611" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<title>EKA — AI Assistant</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='16' fill='%23C9A84C'/><text x='50%' y='55%' dominant-baseline='middle' text-anchor='middle' font-size='18' fill='%230C0608' font-family='serif'>✦</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Rajdhani:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="{{ url_for('static', filename='mobile.css') }}" />
+</head>
+<body>
+
+<!-- ═══════════ SPLASH / OPENING ANIMATION ═══════════ -->
+<div id="splash" class="splash">
+  <div class="splash-grid"></div>
+  <div class="splash-core">
+    <div class="core-ring cr1"></div>
+    <div class="core-ring cr2"></div>
+    <div class="core-ring cr3"></div>
+    <div class="core-glyph">✦</div>
+  </div>
+  <div class="splash-word">
+    <span style="--i:0">E</span><span style="--i:1">K</span><span style="--i:2">A</span>
+  </div>
+  <div class="splash-tag">Intelligence, in motion</div>
+  <div class="splash-bar"><div class="splash-bar-fill"></div></div>
+</div>
+
+<!-- ═══════════ SIGN-IN GATE ═══════════ -->
+<div id="signin" class="signin">
+  <div class="signin-backdrop"></div>
+  <div class="signin-card">
+    <div class="si-emblem"><div class="si-ring"></div><div class="si-core">✦</div></div>
+    <h1 class="si-title">Welcome to EKA</h1>
+    <p class="si-sub">Sign in to start chatting. Your email keeps your sessions yours.</p>
+
+    <div class="si-field">
+      <label for="siName">Name <span class="si-optional">(optional)</span></label>
+      <input id="siName" type="text" placeholder="What should EKA call you?" maxlength="32" autocomplete="name" />
+    </div>
+
+    <div class="si-field">
+      <label for="siEmail">Email <span class="si-required">*required</span></label>
+      <input id="siEmail" type="email" placeholder="you@example.com" maxlength="64" autocomplete="email" inputmode="email" />
+      <div class="si-error" id="siError"></div>
+    </div>
+
+    <label class="si-check">
+      <input type="checkbox" id="siTerms" />
+      <span>I agree to keep my data on this device</span>
+    </label>
+
+    <button class="si-submit" id="siSubmit">
+      <span>Continue</span>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+    </button>
+    <p class="si-note">No password needed. Nothing leaves your phone except your chat messages.</p>
+  </div>
+</div>
+
+<!-- ═══════════ APP SHELL ═══════════ -->
+<div id="app" class="app">
+  <canvas id="bgCanvas"></canvas>
+
+  <header class="m-header">
+    <div class="m-header-left">
+      <div class="m-avatar"><div class="m-avatar-core">✦</div></div>
+      <div>
+        <div class="m-brand">EKA</div>
+        <div class="m-status" id="mStatus"><span class="m-dot"></span>Ready</div>
+      </div>
+    </div>
+    <div class="m-header-right">
+      <button id="mWebToggle" class="m-icon-btn" title="Web search" aria-pressed="false">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 0 20M12 2a15.3 15.3 0 0 0 0 20"/></svg>
+      </button>
+      <button id="mMenuToggle" class="m-icon-btn" title="Menu">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- Color-grid speaking visualizer -->
+  <div id="speakGrid" class="speak-grid" style="display:none">
+    <div class="sg-cells" id="sgCells"></div>
+    <span class="sg-label">EKA is speaking…</span>
+  </div>
+
+  <section id="chat" class="m-chat"></section>
+
+  <div class="m-attach-preview" id="mAttachPreview" style="display:none">
+    <img id="mAttachThumb" src="" alt="attached" />
+    <button id="mAttachRemove">✕</button>
+  </div>
+
+  <div class="m-composer-wrap">
+    <div class="m-composer" id="mComposer">
+      <button id="mAttachBtn" class="m-round-btn" title="Attach photo">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+      </button>
+      <input type="file" id="mPhotoInput" accept="image/*" style="display:none" />
+      <input id="mMsg" type="text" placeholder="Message EKA…" autocomplete="off" />
+      <button id="mMic" class="m-round-btn" title="Voice input">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+      </button>
+      <button id="mSend" class="m-send-btn">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- Slide-up menu / Settings -->
+  <div class="m-sheet-overlay" id="mSheetOverlay">
+    <div class="m-sheet" id="mSheet">
+      <div class="m-sheet-handle"></div>
+      <div class="m-sheet-user">
+        <div class="m-sheet-avatar" id="mSheetAvatar">?</div>
+        <div class="m-sheet-user-txt">
+          <div class="m-sheet-name" id="mSheetName">Guest</div>
+          <div class="m-sheet-email" id="mSheetEmail">—</div>
+        </div>
+        <button class="m-edit-name-btn" id="mEditNameBtn" title="Change name">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+        </button>
+      </div>
+
+      <div class="m-sheet-scroll">
+        <div class="m-sheet-section-label" style="--d:0">Chat</div>
+        <button class="m-sheet-item" id="mNewChat" style="--d:1">🗨️ New Chat</button>
+        <button class="m-sheet-item" id="mChatHistoryBtn" style="--d:2">🕘 Chat History</button>
+
+        <div class="m-sheet-section-label" style="--d:3">Preferences</div>
+        <div class="m-sheet-row" style="--d:4">
+          <span>🔊 Mute voice</span>
+          <label class="m-toggle"><input type="checkbox" id="mMute"/><span></span></label>
+        </div>
+        <div class="m-sheet-row" style="--d:5">
+          <span>🌐 Web search</span>
+          <label class="m-toggle"><input type="checkbox" id="mWebSetting"/><span></span></label>
+        </div>
+        <div class="m-sheet-row" style="--d:6">
+          <span>🔔 Sound effects</span>
+          <label class="m-toggle"><input type="checkbox" id="mSound"/><span></span></label>
+        </div>
+        <div class="m-sheet-row" style="--d:7">
+          <span>📳 Haptic feedback</span>
+          <label class="m-toggle"><input type="checkbox" id="mHaptic"/><span></span></label>
+        </div>
+        <div class="m-sheet-row m-sheet-row-select" style="--d:8">
+          <span>🗣️ Language</span>
+          <select id="mLangSelect" class="m-select">
+            <option value="auto">Auto detect</option>
+            <option value="en-IN">English (India)</option>
+            <option value="en-GB">English (UK)</option>
+            <option value="en-US">English (US)</option>
+            <option value="hi-IN">हिन्दी (Hindi)</option>
+          </select>
+        </div>
+
+        <div class="m-sheet-section-label" style="--d:9">Data</div>
+        <button class="m-sheet-item" id="mExportChat" style="--d:10">⬇️ Export current chat</button>
+        <button class="m-sheet-item" id="mClearData" style="--d:11">🧹 Clear all chat history</button>
+
+        <div class="m-sheet-section-label" style="--d:12">Account</div>
+        <button class="m-sheet-item danger" id="mSignOut" style="--d:13">🚪 Sign out</button>
+      </div>
+      <div class="m-sheet-foot">© 2026 EKA AI · Mobile 1.0</div>
+    </div>
+  </div>
+
+  <!-- Chat History sheet -->
+  <div class="m-sheet-overlay" id="mHistoryOverlay">
+    <div class="m-sheet m-sheet-tall" id="mHistorySheet">
+      <div class="m-sheet-handle"></div>
+      <div class="m-sheet-title-row">
+        <h3>Chat History</h3>
+        <button class="m-close-btn" id="mHistoryClose">✕</button>
+      </div>
+      <div class="m-history-list" id="mHistoryList"></div>
+      <div class="m-history-empty" id="mHistoryEmpty">No saved conversations yet.</div>
+    </div>
+  </div>
+
+  <!-- Edit name modal -->
+  <div class="m-modal-overlay" id="mNameModalOverlay">
+    <div class="m-modal" id="mNameModal">
+      <h3>Change name</h3>
+      <p class="m-modal-sub">This is what EKA will call you.</p>
+      <input id="mNameInput" type="text" maxlength="32" placeholder="Your name" autocomplete="name" />
+      <div class="m-modal-actions">
+        <button id="mNameCancel" class="m-modal-btn ghost">Cancel</button>
+        <button id="mNameSave" class="m-modal-btn primary">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="{{ url_for('static', filename='mobile.js') }}"></script>
+</body>
+</html>
