@@ -2,5 +2,4 @@ flask
 requests
 python-dotenv
 flask-cors
-gTTS
-duckduckgo-search
+gTTs
