@@ -1,0 +1,865 @@
+document.addEventListener('DOMContentLoaded', () => {
+
+  // ══════════════════════════════
+  // DOM REFS
+  // ══════════════════════════════
+  const splash = document.getElementById('splash');
+  const signin = document.getElementById('signin');
+  const app    = document.getElementById('app');
+  const siName = document.getElementById('siName');
+  const siEmail = document.getElementById('siEmail');
+  const siError = document.getElementById('siError');
+  const siSubmit = document.getElementById('siSubmit');
+
+  const viewChat = document.getElementById('viewChat');
+  const viewSettings = document.getElementById('viewSettings');
+  const btnMenu = document.getElementById('btnMenu');
+  const btnWebToggle = document.getElementById('btnWebToggle');
+  const btnNewChat = document.getElementById('btnNewChat');
+  const btnSettingsBack = document.getElementById('btnSettingsBack');
+
+  const chat = document.getElementById('chat');
+  const mMsg = document.getElementById('mMsg');
+  const mSend = document.getElementById('mSend');
+  const mMic = document.getElementById('mMic');
+  const mStatus = document.getElementById('mStatus');
+  const speakGrid = document.getElementById('speakGrid');
+  const sgCells = document.getElementById('sgCells');
+  const sgStop = document.getElementById('sgStop');
+  const suggestionRow = document.getElementById('suggestionRow');
+
+  const mAttachBtn = document.getElementById('mAttachBtn');
+  const mPhotoInput = document.getElementById('mPhotoInput');
+  const mAttachPreview = document.getElementById('mAttachPreview');
+  const mAttachThumb = document.getElementById('mAttachThumb');
+  const mAttachRemove = document.getElementById('mAttachRemove');
+
+  const mSheetOverlay = document.getElementById('mSheetOverlay');
+  const mSheet = document.getElementById('mSheet');
+  const mSheetAvatar = document.getElementById('mSheetAvatar');
+  const mSheetName = document.getElementById('mSheetName');
+  const mSheetEmail = document.getElementById('mSheetEmail');
+  const sheetUserRow = document.getElementById('sheetUserRow');
+  const mNewChat = document.getElementById('mNewChat');
+  const mOpenSettings = document.getElementById('mOpenSettings');
+  const mHistorySearch = document.getElementById('mHistorySearch');
+  const mHistoryList = document.getElementById('mHistoryList');
+  const mHistoryEmpty = document.getElementById('mHistoryEmpty');
+
+  // Settings page controls
+  const stAvatar = document.getElementById('stAvatar');
+  const stName = document.getElementById('stName');
+  const stEmail = document.getElementById('stEmail');
+  const stEditName = document.getElementById('stEditName');
+  const rowThemeMode = document.getElementById('rowThemeMode');
+  const themeModeSub = document.getElementById('themeModeSub');
+  const swatchRow = document.getElementById('swatchRow');
+  const fontSizeSlider = document.getElementById('fontSizeSlider');
+  const fontSizeSub = document.getElementById('fontSizeSub');
+  const swReduceMotion = document.getElementById('swReduceMotion');
+  const rowPersona = document.getElementById('rowPersona');
+  const personaSub = document.getElementById('personaSub');
+  const swWeb = document.getElementById('swWeb');
+  const swSuggestions = document.getElementById('swSuggestions');
+  const swMute = document.getElementById('swMute');
+  const swSound = document.getElementById('swSound');
+  const swHaptic = document.getElementById('swHaptic');
+  const rowLang = document.getElementById('rowLang');
+  const langSub = document.getElementById('langSub');
+  const btnChatHistory = document.getElementById('btnChatHistory');
+  const historyCountSub = document.getElementById('historyCountSub');
+  const btnExportChat = document.getElementById('btnExportChat');
+  const btnClearData = document.getElementById('btnClearData');
+  const btnSignOut = document.getElementById('btnSignOut');
+
+  // Picker sheets
+  const pickThemeOverlay = document.getElementById('pickThemeOverlay');
+  const themeOptions = document.getElementById('themeOptions');
+  const pickPersonaOverlay = document.getElementById('pickPersonaOverlay');
+  const personaOptions = document.getElementById('personaOptions');
+  const pickLangOverlay = document.getElementById('pickLangOverlay');
+  const langOptions = document.getElementById('langOptions');
+
+  const mHistoryOverlay = document.getElementById('mHistoryOverlay');
+  const mHistorySheet = document.getElementById('mHistorySheet');
+  const mHistoryClose = document.getElementById('mHistoryClose');
+  const mHistoryFullList = document.getElementById('mHistoryFullList');
+  const mHistoryFullEmpty = document.getElementById('mHistoryFullEmpty');
+
+  const mNameModalOverlay = document.getElementById('mNameModalOverlay');
+  const mNameInput = document.getElementById('mNameInput');
+  const mNameSave = document.getElementById('mNameSave');
+  const mNameCancel = document.getElementById('mNameCancel');
+
+  const mConfirmOverlay = document.getElementById('mConfirmOverlay');
+  const confirmTitle = document.getElementById('confirmTitle');
+  const confirmSub = document.getElementById('confirmSub');
+  const mConfirmOk = document.getElementById('mConfirmOk');
+  const mConfirmCancel = document.getElementById('mConfirmCancel');
+
+  // ══════════════════════════════
+  // STATE
+  // ══════════════════════════════
+  let chatHistory = [];
+  let renderLog = [];
+  let isMuted = false;
+  let webSearchEnabled = false;
+  let isThinking = false;
+  let attachedImage = null;
+  let recognition = null;
+  let soundOn = true;
+  let hapticOn = true;
+  let currentLang = 'auto';
+  let currentSessionId = null;
+  let themeMode = 'system';     // system | dark | light
+  let accentColor = 'violet';
+  let fontSize = 1;
+  let reduceMotion = false;
+  let persona = 'balanced';
+  let showSuggestions = true;
+  let pendingConfirmAction = null;
+
+  const API_ENDPOINT = '/api/chat';
+
+  // ══════════════════════════════
+  // THEME ENGINE
+  // ══════════════════════════════
+  const mq = window.matchMedia('(prefers-color-scheme: light)');
+  function resolveTheme() {
+    if (themeMode === 'system') return mq.matches ? 'light' : 'dark';
+    return themeMode;
+  }
+  function applyTheme() {
+    document.documentElement.setAttribute('data-theme', resolveTheme());
+    document.documentElement.setAttribute('data-accent', accentColor);
+    document.documentElement.setAttribute('data-fontsize', String(fontSize));
+    document.documentElement.setAttribute('data-reduce-motion', reduceMotion ? '1' : '0');
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute('content', getComputedStyle(document.documentElement).getPropertyValue('--md-surface').trim() || '#141017');
+  }
+  mq.addEventListener?.('change', () => { if (themeMode === 'system') applyTheme(); });
+
+  const ACCENTS = [
+    { id:'violet', label:'Violet', hex:'#9C7EDC' },
+    { id:'teal',   label:'Teal',   hex:'#5BC9BA' },
+    { id:'rose',   label:'Rose',   hex:'#E88CA3' },
+    { id:'amber',  label:'Amber',  hex:'#E3A94A' },
+    { id:'blue',   label:'Blue',   hex:'#6E97DE' },
+    { id:'sage',   label:'Sage',   hex:'#7CB07A' },
+  ];
+  function buildSwatches() {
+    swatchRow.innerHTML = '';
+    ACCENTS.forEach(a => {
+      const el = document.createElement('button');
+      el.className = 'swatch' + (a.id === accentColor ? ' active' : '');
+      el.style.background = a.hex;
+      el.title = a.label;
+      el.addEventListener('click', () => {
+        accentColor = a.id; savePrefs(); applyTheme(); buildSwatches(); vibrate(8);
+        showToast(a.label + ' accent applied');
+      });
+      swatchRow.appendChild(el);
+    });
+  }
+
+  const FONT_LABELS = ['Small', 'Medium', 'Large', 'Extra large'];
+  function applyFontSizeUI() {
+    fontSizeSlider.value = String(fontSize);
+    fontSizeSub.textContent = FONT_LABELS[fontSize];
+  }
+
+  const THEME_LABELS = { system:'System default', dark:'Dark', light:'Light' };
+  const PERSONA_LABELS = { balanced:'Balanced', concise:'Concise & direct', detailed:'Detailed & thorough', creative:'Creative & casual' };
+  const LANG_LABELS = { auto:'Auto detect', 'en-IN':'English (India)', 'en-GB':'English (UK)', 'en-US':'English (US)', 'hi-IN':'हिन्दी (Hindi)' };
+
+  // ══════════════════════════════
+  // SPEAKING GRID CELLS
+  // ══════════════════════════════
+  for (let i = 0; i < 27; i++) {
+    const c = document.createElement('div');
+    c.className = 'cell';
+    c.style.animationDelay = (Math.random() * 0.9).toFixed(2) + 's';
+    sgCells.appendChild(c);
+  }
+
+  // ══════════════════════════════
+  // BACKGROUND PARTICLE CANVAS
+  // ══════════════════════════════
+  (function initCanvas() {
+    const canvas = document.getElementById('bgCanvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    let W, H;
+    const dust = [];
+    function resize() { W = canvas.width = window.innerWidth; H = canvas.height = window.innerHeight; }
+    resize(); window.addEventListener('resize', resize);
+    for (let i = 0; i < 30; i++) dust.push({
+      x: Math.random()*window.innerWidth, y: Math.random()*window.innerHeight,
+      r: Math.random()*1.1+0.3, a: Math.random()*0.18+0.04,
+      vx:(Math.random()-0.5)*0.15, vy:(Math.random()-0.5)*0.12,
+    });
+    let raf;
+    function frame() {
+      if (!reduceMotion) {
+        ctx.clearRect(0,0,W,H);
+        const primary = getComputedStyle(document.documentElement).getPropertyValue('--md-primary').trim() || '#D6BBFB';
+        for (const p of dust) {
+          p.x+=p.vx; p.y+=p.vy;
+          if(p.x<0)p.x=W; if(p.x>W)p.x=0; if(p.y<0)p.y=H; if(p.y>H)p.y=0;
+          ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
+          ctx.fillStyle = primary; ctx.globalAlpha = p.a; ctx.fill(); ctx.globalAlpha = 1;
+        }
+      }
+      raf = requestAnimationFrame(frame);
+    }
+    frame();
+  })();
+
+  // ══════════════════════════════
+  // PROFILE + PREFS PERSISTENCE
+  // ══════════════════════════════
+  function loadProfile() {
+    try { return JSON.parse(localStorage.getItem('eka_profile') || 'null'); } catch { return null; }
+  }
+  function saveProfile(p) { localStorage.setItem('eka_profile', JSON.stringify(p)); }
+
+  function loadPrefs() {
+    try { return JSON.parse(localStorage.getItem('eka_prefs') || '{}'); } catch { return {}; }
+  }
+  function savePrefs() {
+    localStorage.setItem('eka_prefs', JSON.stringify({
+      muted:isMuted, web:webSearchEnabled, sound:soundOn, haptic:hapticOn, lang:currentLang,
+      themeMode, accentColor, fontSize, reduceMotion, persona, showSuggestions
+    }));
+  }
+  function applyPrefs() {
+    const p = loadPrefs();
+    isMuted = !!p.muted;
+    webSearchEnabled = !!p.web;
+    soundOn = p.sound === undefined ? true : !!p.sound;
+    hapticOn = p.haptic === undefined ? true : !!p.haptic;
+    currentLang = p.lang || 'auto';
+    themeMode = p.themeMode || 'system';
+    accentColor = p.accentColor || 'violet';
+    fontSize = p.fontSize === undefined ? 1 : p.fontSize;
+    reduceMotion = !!p.reduceMotion;
+    persona = p.persona || 'balanced';
+    showSuggestions = p.showSuggestions === undefined ? true : !!p.showSuggestions;
+
+    swMute.checked = isMuted;
+    swWeb.checked = webSearchEnabled;
+    swSound.checked = soundOn;
+    swHaptic.checked = hapticOn;
+    swSuggestions.checked = showSuggestions;
+    swReduceMotion.checked = reduceMotion;
+    langSub.textContent = LANG_LABELS[currentLang] || 'Auto detect';
+    themeModeSub.textContent = THEME_LABELS[themeMode] || 'System default';
+    personaSub.textContent = PERSONA_LABELS[persona] || 'Balanced';
+    btnWebToggle.classList.toggle('active', webSearchEnabled);
+    btnWebToggle.setAttribute('aria-pressed', String(webSearchEnabled));
+    applyFontSizeUI();
+    buildSwatches();
+    applyTheme();
+    if (recognition) recognition.lang = currentLang === 'auto' ? 'en-IN' : currentLang;
+  }
+
+  // ══════════════════════════════
+  // CHAT SESSIONS
+  // ══════════════════════════════
+  const SESSIONS_KEY = 'eka_sessions';
+  function loadSessions() { try { return JSON.parse(localStorage.getItem(SESSIONS_KEY) || '[]'); } catch { return []; } }
+  function saveSessions(list) { localStorage.setItem(SESSIONS_KEY, JSON.stringify(list)); }
+
+  function makeSessionTitle(log) {
+    const firstUser = log.find(m => m.who === 'user' && m.text);
+    if (firstUser) return firstUser.text.slice(0, 40) + (firstUser.text.length > 40 ? '…' : '');
+    return 'New conversation';
+  }
+
+  function persistCurrentSession() {
+    if (!currentSessionId || renderLog.length === 0) return;
+    const sessions = loadSessions();
+    const idx = sessions.findIndex(s => s.id === currentSessionId);
+    const data = { id: currentSessionId, title: makeSessionTitle(renderLog), log: renderLog, history: chatHistory, updated: Date.now() };
+    if (idx >= 0) sessions[idx] = data; else sessions.unshift(data);
+    saveSessions(sessions);
+  }
+
+  function startNewSession(withWelcome) {
+    currentSessionId = 'sess_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+    localStorage.setItem('eka_current_session', currentSessionId);
+    chat.innerHTML = '';
+    chatHistory = [];
+    renderLog = [];
+    renderSuggestions(['What can you help with?', 'Explain a concept simply', 'Write something for me']);
+    if (withWelcome) {
+      const profile = loadProfile();
+      addBubble(`Hey **${(profile && profile.name) || 'there'}**! I'm **Eka** ✨ — ask me anything, or tap the mic to talk.`, 'bot', '', true);
+    }
+  }
+
+  function restoreLastSession() {
+    const lastId = localStorage.getItem('eka_current_session');
+    const sessions = loadSessions();
+    const found = lastId && sessions.find(s => s.id === lastId);
+    if (found) {
+      currentSessionId = found.id;
+      chatHistory = found.history || [];
+      renderLog = (found.log || []).slice();
+      chat.innerHTML = '';
+      renderLog.forEach(m => addBubble(m.text, m.who, m.source || '', false, m.imgData || null, true));
+      renderSuggestions([]);
+      return true;
+    }
+    return false;
+  }
+
+  function switchToSession(s) {
+    persistCurrentSession();
+    currentSessionId = s.id;
+    localStorage.setItem('eka_current_session', s.id);
+    chatHistory = s.history || [];
+    renderLog = (s.log || []).slice();
+    chat.innerHTML = '';
+    renderLog.forEach(m => addBubble(m.text, m.who, m.source || '', false, m.imgData || null, true));
+    renderSuggestions([]);
+  }
+
+  function renderHistoryList(container, emptyEl, filterText) {
+    let sessions = loadSessions().sort((a, b) => b.updated - a.updated);
+    if (filterText) {
+      const f = filterText.toLowerCase();
+      sessions = sessions.filter(s => (s.title || '').toLowerCase().includes(f));
+    }
+    container.innerHTML = '';
+    emptyEl.classList.toggle('show', sessions.length === 0);
+    sessions.forEach((s, i) => {
+      const item = document.createElement('div');
+      item.className = (container === mHistoryFullList ? 'history-item' : 'sheet-item') + (s.id === currentSessionId ? ' active' : '');
+      item.style.setProperty('--d', i);
+      const dt = new Date(s.updated);
+      const isFull = container === mHistoryFullList;
+      item.innerHTML = isFull
+        ? `<button class="history-main"><div class="history-title">${escapeHtml(s.title || 'New conversation')}</div>
+             <div class="history-meta">${dt.toLocaleDateString([], { month:'short', day:'numeric' })} · ${dt.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' })} · ${(s.log||[]).length} msgs</div></button>
+           <button class="history-del" aria-label="Delete">🗑️</button>`
+        : `<span style="font-size:15px">💬</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(s.title || 'New conversation')}</span>`;
+
+      if (isFull) {
+        item.querySelector('.history-main').addEventListener('click', () => { switchToSession(s); closeHistoryFull(); closeSheet(); vibrate(8); });
+        item.querySelector('.history-del').addEventListener('click', (e) => {
+          e.stopPropagation();
+          const remaining = loadSessions().filter(x => x.id !== s.id);
+          saveSessions(remaining);
+          if (s.id === currentSessionId) startNewSession(true);
+          renderHistoryList(mHistoryFullList, mHistoryFullEmpty);
+          updateHistoryCount();
+          showToast('Conversation deleted'); vibrate(12);
+        });
+      } else {
+        item.addEventListener('click', () => { switchToSession(s); closeSheet(); vibrate(8); });
+      }
+      container.appendChild(item);
+    });
+  }
+  function updateHistoryCount() {
+    const n = loadSessions().length;
+    historyCountSub.textContent = n === 1 ? '1 conversation' : `${n} conversations`;
+  }
+
+  function escapeHtml(str) { const d = document.createElement('div'); d.textContent = str; return d.innerHTML; }
+
+  // ══════════════════════════════
+  // SOUND + HAPTICS
+  // ══════════════════════════════
+  let audioCtx = null;
+  function playBeep(freq, dur) {
+    if (!soundOn) return;
+    try {
+      audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+      const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+      o.type = 'sine'; o.frequency.value = freq;
+      g.gain.setValueAtTime(0.06, audioCtx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + (dur || 0.12));
+      o.connect(g); g.connect(audioCtx.destination);
+      o.start(); o.stop(audioCtx.currentTime + (dur || 0.12));
+    } catch {}
+  }
+  function vibrate(ms) { if (hapticOn && navigator.vibrate) navigator.vibrate(ms); }
+
+  // ══════════════════════════════
+  // RIPPLE
+  // ══════════════════════════════
+  function attachRipple(el) {
+    el.addEventListener('click', function (e) {
+      const rect = el.getBoundingClientRect();
+      const r = document.createElement('span');
+      const size = Math.max(rect.width, rect.height);
+      r.className = 'ripple';
+      r.style.width = r.style.height = size + 'px';
+      const cx = (e.clientX ?? rect.left + rect.width/2) - rect.left - size/2;
+      const cy = (e.clientY ?? rect.top + rect.height/2) - rect.top - size/2;
+      r.style.left = cx + 'px'; r.style.top = cy + 'px';
+      el.appendChild(r);
+      setTimeout(() => r.remove(), 620);
+    });
+  }
+  function attachRippleAll() {
+    document.querySelectorAll('.round-btn, .send-btn, .icon-btn, .si-submit, .sheet-item, .history-item, .modal-btn, .close-btn, .profile-edit, .history-del, .setting-row.action, .picker-option, .swatch')
+      .forEach(attachRipple);
+  }
+
+  // ══════════════════════════════
+  // TOAST
+  // ══════════════════════════════
+  let toastEl = null;
+  function showToast(text) {
+    if (!text) return;
+    if (!toastEl) { toastEl = document.createElement('div'); toastEl.className = 'toast'; document.body.appendChild(toastEl); }
+    toastEl.textContent = text;
+    toastEl.classList.add('show');
+    clearTimeout(toastEl._t);
+    toastEl._t = setTimeout(() => toastEl.classList.remove('show'), 2000);
+  }
+
+  // ══════════════════════════════
+  // CONFIRM MODAL
+  // ══════════════════════════════
+  function askConfirm(title, sub, onOk) {
+    confirmTitle.textContent = title;
+    confirmSub.textContent = sub;
+    pendingConfirmAction = onOk;
+    mConfirmOverlay.classList.add('show');
+  }
+  function closeConfirm() { mConfirmOverlay.classList.remove('show'); pendingConfirmAction = null; }
+  mConfirmCancel.addEventListener('click', closeConfirm);
+  mConfirmOverlay.addEventListener('click', (e) => { if (e.target === mConfirmOverlay) closeConfirm(); });
+  mConfirmOk.addEventListener('click', () => { const fn = pendingConfirmAction; closeConfirm(); fn && fn(); });
+
+  // ══════════════════════════════
+  // PHOTO ATTACH
+  // ══════════════════════════════
+  mAttachBtn.addEventListener('click', () => mPhotoInput.click());
+  mPhotoInput.addEventListener('change', () => {
+    const file = mPhotoInput.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      attachedImage = reader.result;
+      mAttachThumb.src = attachedImage;
+      mAttachPreview.hidden = false;
+    };
+    reader.readAsDataURL(file);
+  });
+  mAttachRemove.addEventListener('click', () => { attachedImage = null; mAttachPreview.hidden = true; mPhotoInput.value = ''; });
+
+  // ══════════════════════════════
+  // SUGGESTIONS
+  // ══════════════════════════════
+  const SUGGESTION_POOL = [
+    'Summarize this in 3 bullet points',
+    'Explain like I\u2019m new to this',
+    'Give me a code example',
+    'What are the pros and cons?',
+    'Make it shorter',
+    'Can you elaborate?',
+  ];
+  function renderSuggestions(list) {
+    suggestionRow.innerHTML = '';
+    if (!showSuggestions || !list || list.length === 0) return;
+    list.forEach((text, i) => {
+      const chip = document.createElement('button');
+      chip.className = 'suggestion-chip';
+      chip.style.setProperty('--i', i);
+      chip.style.animationDelay = (i * 0.05) + 's';
+      chip.textContent = text;
+      chip.addEventListener('click', () => { sendMessage(text); });
+      suggestionRow.appendChild(chip);
+    });
+    attachRippleAll();
+  }
+
+  // ══════════════════════════════
+  // BUBBLE RENDERING
+  // ══════════════════════════════
+  function addBubble(text, who = 'bot', source = '', animate = false, imgData = null, skipLog = false) {
+    if (!skipLog) { renderLog.push({ who, text, source, imgData }); persistCurrentSession(); }
+
+    const row = document.createElement('div');
+    row.className = `row ${who}`;
+
+    const bubble = document.createElement('div');
+    bubble.className = 'bubble';
+
+    if (imgData) {
+      const img = document.createElement('img');
+      img.src = imgData; img.className = 'b-img'; img.alt = 'attached';
+      bubble.appendChild(img);
+    }
+
+    const content = document.createElement('div');
+    bubble.appendChild(content);
+
+    const finalize = () => {
+      if (source) {
+        const meta = document.createElement('div'); meta.className = 'meta-row';
+        const badge = document.createElement('span'); badge.className = 'badge'; badge.textContent = source;
+        meta.appendChild(badge);
+        meta.appendChild(document.createTextNode(new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' })));
+        bubble.appendChild(meta);
+      }
+      if (who === 'bot') {
+        const actions = document.createElement('div'); actions.className = 'msg-actions';
+        const copyBtn = document.createElement('button'); copyBtn.className = 'msg-action-btn'; copyBtn.title = 'Copy';
+        copyBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+        copyBtn.addEventListener('click', () => { navigator.clipboard?.writeText(text); showToast('Copied to clipboard'); vibrate(6); });
+        const likeBtn = document.createElement('button'); likeBtn.className = 'msg-action-btn'; likeBtn.title = 'Good response';
+        likeBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z"/></svg>';
+        likeBtn.addEventListener('click', () => { likeBtn.classList.toggle('liked'); vibrate(6); if(likeBtn.classList.contains('liked')) showToast('Thanks for the feedback'); });
+        actions.appendChild(copyBtn); actions.appendChild(likeBtn);
+        bubble.appendChild(actions);
+        attachRipple(copyBtn); attachRipple(likeBtn);
+      }
+    };
+
+    if (animate && who === 'bot' && !reduceMotion) {
+      let i = 0; const raw = text;
+      const step = Math.max(2, Math.round(raw.length / 90));
+      const timer = setInterval(() => {
+        if (i < raw.length) {
+          i += step;
+          content.innerHTML = typeof marked !== 'undefined' ? marked.parse(raw.slice(0, i)) : raw.slice(0, i);
+          chat.scrollTop = chat.scrollHeight;
+        } else { clearInterval(timer); content.innerHTML = typeof marked !== 'undefined' ? marked.parse(raw) : raw; finalize(); }
+      }, 14);
+    } else {
+      content.innerHTML = typeof marked !== 'undefined' ? marked.parse(text) : text;
+      finalize();
+    }
+
+    row.appendChild(bubble);
+    chat.appendChild(row);
+    chat.scrollTop = chat.scrollHeight;
+  }
+
+  function addTyping() {
+    const t = document.createElement('div');
+    t.className = 'row bot'; t.id = 'mTypingRow';
+    t.innerHTML = `<div class="typing-row"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div>`;
+    chat.appendChild(t); chat.scrollTop = chat.scrollHeight;
+  }
+  function removeTyping() { document.getElementById('mTypingRow')?.remove(); }
+
+  function setStatus(state) {
+    const dot = mStatus.querySelector('.status-dot');
+    dot.className = 'status-dot' + (state !== 'ready' ? ` ${state}` : '');
+    const map = { ready:'Ready', thinking:'Thinking…', speaking:'Speaking…' };
+    mStatus.querySelector('.status-text').textContent = map[state] || 'Ready';
+  }
+
+  // ══════════════════════════════
+  // SEND MESSAGE
+  // ══════════════════════════════
+  const PERSONA_TAGS = {
+    balanced: '', concise: ' Be brief and to the point.', detailed: ' Be thorough and explain in depth.', creative: ' Feel free to be playful and casual.'
+  };
+
+  async function sendMessage(text) {
+    const cleaned = (text || '').trim();
+    if (!cleaned && !attachedImage) return;
+    if (isThinking) return;
+
+    suggestionRow.innerHTML = '';
+    const imageToSend = attachedImage;
+    if (attachedImage) { attachedImage = null; mAttachPreview.hidden = true; }
+
+    chatHistory.push({ role:'user', content: cleaned || '[image attached]' });
+    addBubble(cleaned || '', 'user', '', false, imageToSend);
+    mMsg.value = ''; autoGrow();
+    playBeep(520, 0.07); vibrate(10);
+    addTyping(); isThinking = true; setStatus('thinking');
+    mSend.disabled = true;
+
+    try {
+      const body = {
+        message: (cleaned || 'Please analyse this image.') + (PERSONA_TAGS[persona] || ''),
+        history: chatHistory, wiki: webSearchEnabled, lang: currentLang
+      };
+      if (imageToSend) body.image = imageToSend;
+
+      const res = await fetch(API_ENDPOINT, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+      }).then(r => r.json());
+
+      removeTyping(); isThinking = false; mSend.disabled = false;
+      const srcLabel = res.source === 'web+ai' ? '🌐 Web + AI' : res.source === 'local' ? '📁 Cached' : '🤖 AI';
+      chatHistory.push({ role:'assistant', content: res.reply });
+
+      setTimeout(() => {
+        addBubble(res.reply, 'bot', srcLabel, true);
+        setStatus('speaking');
+        const plain = res.reply.replace(/(\*\*|__|[\*_`])/g,'').replace(/<[^>]*>/g,'').replace(/[^\p{L}\p{N}\s.,!?]/gu,'').trim();
+        speak(plain, () => { setStatus('ready'); maybeShowFollowups(); });
+      }, 180);
+    } catch {
+      removeTyping(); isThinking = false; mSend.disabled = false; setStatus('ready');
+      addBubble('Something went wrong reaching Eka. Please try again.', 'bot');
+    }
+  }
+
+  function maybeShowFollowups() {
+    if (!showSuggestions) return;
+    const shuffled = [...SUGGESTION_POOL].sort(() => Math.random() - 0.5).slice(0, 3);
+    renderSuggestions(shuffled);
+  }
+
+  function autoGrow() {
+    mMsg.style.height = 'auto';
+    mMsg.style.height = Math.min(mMsg.scrollHeight, 120) + 'px';
+  }
+  mMsg.addEventListener('input', autoGrow);
+
+  mSend.addEventListener('click', () => sendMessage(mMsg.value));
+  mMsg.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(mMsg.value); }
+  });
+
+  // ══════════════════════════════
+  // TTS
+  // ══════════════════════════════
+  function speak(text, onEnd = null) {
+    if (!text || isMuted || !('speechSynthesis' in window)) { onEnd?.(); return; }
+    speechSynthesis.cancel();
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.rate = 1.0; utter.pitch = 1.05;
+    const isHindi = /[\u0900-\u097F]/.test(text);
+    utter.lang = isHindi ? 'hi-IN' : 'en-GB';
+    utter.onstart = () => { speakGrid.hidden = false; };
+    utter.onend   = () => { speakGrid.hidden = true; onEnd?.(); };
+    utter.onerror = () => { speakGrid.hidden = true; onEnd?.(); };
+    speechSynthesis.speak(utter);
+  }
+  sgStop.addEventListener('click', () => { speechSynthesis.cancel(); speakGrid.hidden = true; setStatus('ready'); vibrate(6); });
+
+  // ══════════════════════════════
+  // SPEECH RECOGNITION
+  // ══════════════════════════════
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (SR) {
+    recognition = new SR();
+    recognition.continuous = false; recognition.interimResults = false; recognition.lang = 'en-IN';
+    recognition.onstart = () => { mMic.classList.add('mic-active'); };
+    recognition.onend   = () => { mMic.classList.remove('mic-active'); };
+    recognition.onresult = (e) => { const t = e.results[0][0].transcript; mMsg.value = t; sendMessage(t); };
+    recognition.onerror  = () => { mMic.classList.remove('mic-active'); };
+    mMic.addEventListener('click', () => {
+      if (mMic.classList.contains('mic-active')) recognition.stop(); else recognition.start();
+    });
+  } else {
+    mMic.style.display = 'none';
+  }
+
+  // ══════════════════════════════
+  // SPLASH → SIGN-IN / APP
+  // ══════════════════════════════
+  setTimeout(() => {
+    splash.style.pointerEvents = 'none';
+    const profile = loadProfile();
+    if (profile && profile.email) enterApp(profile);
+    else signin.classList.add('show');
+  }, 2000);
+
+  function validEmail(v) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim()); }
+
+  siSubmit.addEventListener('click', () => {
+    const name = siName.value.trim();
+    const email = siEmail.value.trim();
+    if (!email) {
+      siError.textContent = 'Email is required to continue.';
+      siSubmit.classList.add('shake'); setTimeout(()=>siSubmit.classList.remove('shake'),400);
+      siEmail.focus(); return;
+    }
+    if (!validEmail(email)) {
+      siError.textContent = 'That doesn\u2019t look like a valid email address.';
+      siSubmit.classList.add('shake'); setTimeout(()=>siSubmit.classList.remove('shake'),400);
+      siEmail.focus(); return;
+    }
+    siError.textContent = '';
+    const profile = { name: name || 'Guest', email, joined: Date.now() };
+    saveProfile(profile);
+    signin.classList.remove('show');
+    setTimeout(() => enterApp(profile), 320);
+  });
+
+  function enterApp(profile) {
+    signin.classList.remove('show');
+    app.classList.add('ready');
+    updateProfileUI(profile);
+    applyPrefs();
+    updateHistoryCount();
+    if (chat.children.length === 0) { if (!restoreLastSession()) startNewSession(true); }
+    attachRippleAll();
+  }
+
+  function updateProfileUI(profile) {
+    const initial = (profile.name || profile.email || '?').trim().charAt(0).toUpperCase();
+    mSheetName.textContent = profile.name || 'Guest';
+    mSheetEmail.textContent = profile.email || '—';
+    mSheetAvatar.textContent = initial;
+    stName.textContent = profile.name || 'Guest';
+    stEmail.textContent = profile.email || '—';
+    stAvatar.textContent = initial;
+  }
+
+  // ══════════════════════════════
+  // NAVIGATION: SETTINGS PAGE
+  // ══════════════════════════════
+  function openSettings() {
+    viewSettings.hidden = false;
+    requestAnimationFrame(() => viewSettings.classList.add('show'));
+    viewChat.classList.add('pushed');
+    updateHistoryCount();
+  }
+  function closeSettings() {
+    viewSettings.classList.remove('show');
+    viewChat.classList.remove('pushed');
+    setTimeout(() => { viewSettings.hidden = true; }, 420);
+  }
+  btnSettingsBack.addEventListener('click', () => { closeSettings(); vibrate(6); });
+  mOpenSettings.addEventListener('click', () => { closeSheet(); setTimeout(openSettings, 200); });
+
+  // ══════════════════════════════
+  // SLIDE-UP MENU SHEET
+  // ══════════════════════════════
+  function openSheet() { renderHistoryList(mHistoryList, mHistoryEmpty); mSheetOverlay.classList.add('show'); attachRippleAll(); }
+  function closeSheet() { mSheetOverlay.classList.remove('show'); }
+  btnMenu.addEventListener('click', openSheet);
+  mSheetOverlay.addEventListener('click', (e) => { if (e.target === mSheetOverlay) closeSheet(); });
+  mSheet.addEventListener('click', (e) => e.stopPropagation());
+  sheetUserRow.addEventListener('click', () => { closeSheet(); setTimeout(openSettings, 200); });
+
+  mHistorySearch.addEventListener('input', () => renderHistoryList(mHistoryList, mHistoryEmpty, mHistorySearch.value));
+
+  mNewChat.addEventListener('click', () => {
+    persistCurrentSession(); startNewSession(true); closeSheet();
+    showToast('New chat started'); vibrate(8);
+  });
+
+  btnNewChat.addEventListener('click', () => {
+    persistCurrentSession(); startNewSession(true);
+    showToast('New chat started'); vibrate(8);
+  });
+
+  btnWebToggle.addEventListener('click', () => {
+    webSearchEnabled = !webSearchEnabled;
+    btnWebToggle.classList.toggle('active', webSearchEnabled);
+    btnWebToggle.setAttribute('aria-pressed', String(webSearchEnabled));
+    swWeb.checked = webSearchEnabled;
+    savePrefs();
+    showToast(webSearchEnabled ? '🌐 Web search on' : 'Web search off');
+    vibrate(6);
+  });
+
+  // ══════════════════════════════
+  // SETTINGS PAGE — TOGGLES
+  // ══════════════════════════════
+  swWeb.addEventListener('change', () => { webSearchEnabled = swWeb.checked; btnWebToggle.classList.toggle('active', webSearchEnabled); savePrefs(); vibrate(6); });
+  swMute.addEventListener('change', () => { isMuted = swMute.checked; savePrefs(); vibrate(6); });
+  swSound.addEventListener('change', () => { soundOn = swSound.checked; savePrefs(); if (soundOn) playBeep(660, 0.08); });
+  swHaptic.addEventListener('change', () => { hapticOn = swHaptic.checked; savePrefs(); vibrate(15); });
+  swSuggestions.addEventListener('change', () => { showSuggestions = swSuggestions.checked; savePrefs(); if(!showSuggestions) suggestionRow.innerHTML=''; });
+  swReduceMotion.addEventListener('change', () => { reduceMotion = swReduceMotion.checked; savePrefs(); applyTheme(); vibrate(6); });
+
+  fontSizeSlider.addEventListener('input', () => {
+    fontSize = parseInt(fontSizeSlider.value, 10);
+    applyFontSizeUI(); applyTheme(); savePrefs();
+  });
+
+  // ── Picker sheets (theme / persona / language) ──
+  function openPicker(overlay, optionsEl, currentVal, onSelect) {
+    optionsEl.querySelectorAll('.picker-option').forEach(btn => {
+      btn.classList.toggle('selected', btn.dataset.val === currentVal);
+      btn.onclick = () => { onSelect(btn.dataset.val); closePicker(overlay); vibrate(6); };
+    });
+    overlay.classList.add('show'); attachRippleAll();
+  }
+  function closePicker(overlay) { overlay.classList.remove('show'); }
+
+  rowThemeMode.addEventListener('click', () => openPicker(pickThemeOverlay, themeOptions, themeMode, (val) => {
+    themeMode = val; themeModeSub.textContent = THEME_LABELS[val]; savePrefs(); applyTheme();
+    showToast('Theme set to ' + THEME_LABELS[val]);
+  }));
+  rowPersona.addEventListener('click', () => openPicker(pickPersonaOverlay, personaOptions, persona, (val) => {
+    persona = val; personaSub.textContent = PERSONA_LABELS[val]; savePrefs();
+    showToast('Style set to ' + PERSONA_LABELS[val]);
+  }));
+  rowLang.addEventListener('click', () => openPicker(pickLangOverlay, langOptions, currentLang, (val) => {
+    currentLang = val; langSub.textContent = LANG_LABELS[val]; savePrefs();
+    if (recognition) recognition.lang = val === 'auto' ? 'en-IN' : val;
+    showToast('Voice language set to ' + LANG_LABELS[val]);
+  }));
+  [pickThemeOverlay, pickPersonaOverlay, pickLangOverlay].forEach(ov => {
+    ov.addEventListener('click', (e) => { if (e.target === ov) closePicker(ov); });
+    ov.querySelector('.sheet').addEventListener('click', (e) => e.stopPropagation());
+  });
+
+  // ── Chat history (full list in settings) ──
+  function openHistoryFull() { renderHistoryList(mHistoryFullList, mHistoryFullEmpty); mHistoryOverlay.classList.add('show'); attachRippleAll(); }
+  function closeHistoryFull() { mHistoryOverlay.classList.remove('show'); }
+  btnChatHistory.addEventListener('click', openHistoryFull);
+  mHistoryClose.addEventListener('click', closeHistoryFull);
+  mHistoryOverlay.addEventListener('click', (e) => { if (e.target === mHistoryOverlay) closeHistoryFull(); });
+  mHistorySheet.addEventListener('click', (e) => e.stopPropagation());
+
+  // ── Export / clear / sign out ──
+  btnExportChat.addEventListener('click', () => {
+    if (renderLog.length === 0) { showToast('Nothing to export yet'); return; }
+    const text = renderLog.map(m => `[${m.who === 'user' ? 'You' : 'Eka'}] ${m.text}`).join('\n\n');
+    const blob = new Blob([text], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `eka-chat-${Date.now()}.txt`; a.click();
+    URL.revokeObjectURL(url);
+    showToast('Chat exported'); vibrate(8);
+  });
+
+  btnClearData.addEventListener('click', () => {
+    askConfirm('Clear all chat history?', 'All saved conversations on this device will be permanently deleted.', () => {
+      saveSessions([]);
+      localStorage.removeItem('eka_current_session');
+      startNewSession(true);
+      updateHistoryCount();
+      showToast('All chat history cleared'); vibrate(15);
+    });
+  });
+
+  btnSignOut.addEventListener('click', () => {
+    askConfirm('Sign out?', 'You can sign back in anytime with your email.', () => {
+      persistCurrentSession();
+      localStorage.removeItem('eka_profile');
+      location.reload();
+    });
+  });
+
+  // ── Edit name (from settings page) ──
+  function openNameModal() {
+    const profile = loadProfile() || {};
+    mNameInput.value = profile.name && profile.name !== 'Guest' ? profile.name : '';
+    mNameModalOverlay.classList.add('show');
+    setTimeout(() => mNameInput.focus(), 250);
+  }
+  function closeNameModal() { mNameModalOverlay.classList.remove('show'); }
+  stEditName.addEventListener('click', openNameModal);
+  mNameCancel.addEventListener('click', closeNameModal);
+  mNameModalOverlay.addEventListener('click', (e) => { if (e.target === mNameModalOverlay) closeNameModal(); });
+  mNameSave.addEventListener('click', () => {
+    const profile = loadProfile() || { email: '' };
+    const newName = mNameInput.value.trim() || 'Guest';
+    profile.name = newName;
+    saveProfile(profile);
+    updateProfileUI(profile);
+    closeNameModal();
+    showToast('Name updated'); vibrate(8);
+  });
+
+});
