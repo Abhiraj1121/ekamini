@@ -4,19 +4,40 @@ Real-time web: DuckDuckGo (free, no key) + Wikipedia
 Models: Llama 4 Maverick → Scout → Qwen3 → Mistral (all free via OpenRouter)
 """
 
-import os, re, time, logging, requests
+import sys, os, re, time, logging, requests
 from datetime import datetime
 from flask import Flask, render_template, request, jsonify
 from dotenv import load_dotenv
 from flask_cors import CORS
 
-load_dotenv()
+def _base_dir():
+    # Works both running from source and from a PyInstaller-frozen .exe
+    if getattr(sys, "frozen", False):
+        return sys._MEIPASS
+    return os.path.dirname(os.path.abspath(__file__))
+
+def _config_dir():
+    # Persistent, writable location for the user's saved API key (outside the read-only exe bundle)
+    root = os.getenv("APPDATA") or os.path.expanduser("~")
+    path = os.path.join(root, "EkaAI")
+    os.makedirs(path, exist_ok=True)
+    return path
+
+BASE_DIR   = _base_dir()
+CONFIG_ENV = os.path.join(_config_dir(), ".env")
+
+load_dotenv(CONFIG_ENV)   # user's saved key (created by desktop_launcher.py on first run)
+load_dotenv()             # optional local .env, e.g. for dev
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s", datefmt="%H:%M:%S")
 log = logging.getLogger("eka")
 
-app = Flask(__name__, static_folder="static", template_folder="templates")
+app = Flask(
+    __name__,
+    static_folder=os.path.join(BASE_DIR, "static"),
+    template_folder=os.path.join(BASE_DIR, "templates"),
+)
 CORS(app)
-app.config["MAX_CONTENT_LENGTH"] = 12 * 1024 * 1024  # 12MB — generous for a compressed photo
 
 AI_API_URL = os.getenv("AI_API_URL", "https://openrouter.ai/api/v1/chat/completions")
 AI_API_KEY = os.getenv("AI_API_KEY", "")
@@ -31,16 +52,6 @@ MODELS = [
     {"id": "poolside/laguna-xs.2:free",      "max_tokens": 700,  "temp": 0.60},
     {"id": "google/gemma-3-27b-it:free",              "max_tokens": 700,  "temp": 0.65},
 ]
-
-# ── Vision-capable models, tried first when an image is attached ──
-# (the text-only MODELS above would silently ignore the image otherwise)
-VISION_MODELS = [
-    {"id": "meta-llama/llama-4-maverick:free", "max_tokens": 900, "temp": 0.65},
-    {"id": "meta-llama/llama-4-scout:free",    "max_tokens": 900, "temp": 0.65},
-    {"id": "google/gemma-3-27b-it:free",       "max_tokens": 700, "temp": 0.65},
-]
-
-MAX_IMAGE_B64_CHARS = 8_000_000  # ~6MB decoded — generous but bounded
 
 # ── System prompts ──
 SYS_BASE = f"""You are {BOT_NAME}, a smart helpful AI built by {DEV_NAME} in India 🇮🇳.
@@ -151,7 +162,7 @@ def clean(text: str) -> str:
 # ══════════════════════════════════════
 # AI CORE
 # ══════════════════════════════════════
-def ai_query(user_input: str, history: list = None, system: str = None, image: str = None) -> str:
+def ai_query(user_input: str, history: list = None, system: str = None) -> str:
     if not AI_API_KEY:
         return "AI backend not configured. Please set AI_API_KEY in your .env file."
 
@@ -162,28 +173,16 @@ def ai_query(user_input: str, history: list = None, system: str = None, image: s
             if m.get("role") in ("user", "assistant") and m.get("content"):
                 messages.append({"role": m["role"], "content": m["content"]})
 
-    if image:
-        # Multimodal content block — OpenRouter/OpenAI-style vision message
-        messages.append({
-            "role": "user",
-            "content": [
-                {"type": "text", "text": user_input},
-                {"type": "image_url", "image_url": {"url": image}},
-            ],
-        })
-        models_to_try = VISION_MODELS
-    else:
-        messages.append({"role": "user", "content": user_input})
-        models_to_try = MODELS
+    messages.append({"role": "user", "content": user_input})
 
     headers = {
         "Authorization": f"Bearer {AI_API_KEY}",
         "Content-Type": "application/json",
-        "HTTP-Referer": "https://ekamini.onrender.com",
+        "HTTP-Referer": "https://eka-dev1.onrender.com",
         "X-Title": f"{BOT_NAME} AI",
     }
 
-    for model in models_to_try:
+    for model in MODELS:
         try:
             t0   = time.time()
             body = {"model": model["id"], "messages": messages,
@@ -244,26 +243,19 @@ def chat():
     user_msg = (payload.get("message") or "").strip()
     history  = payload.get("history", [])
     use_web  = payload.get("wiki", False)
-    image    = (payload.get("image") or "").strip() or None
 
-    if image:
-        if not image.startswith("data:image/"):
-            return jsonify({"reply": "That doesn't look like a valid image. Please try a different photo.", "source": "system"})
-        if len(image) > MAX_IMAGE_B64_CHARS:
-            return jsonify({"reply": "That image is too large. Please try a smaller photo (under ~6MB).", "source": "system"})
-
-    if not user_msg and not image:
+    if not user_msg:
         return jsonify({"reply": "Your message seems empty. What would you like to ask?", "source": "system"})
 
-    log.info(f"→ {user_msg[:80]}" + (" [+image]" if image else ""))
+    log.info(f"→ {user_msg[:80]}")
 
-    # Quick path (skip when an image is attached — it needs a real look, not a canned reply)
-    quick = quick_reply(user_msg) if not image else None
+    # Quick path
+    quick = quick_reply(user_msg)
     if quick:
         return jsonify({"reply": quick, "source": "system"})
 
-    # Web search path (skipped for image messages — vision models answer directly)
-    if use_web and not image:
+    # Web search path
+    if use_web:
         content, src = web_search(user_msg)
         if content:
             system = SYS_WEB.replace("{web_content}", content)
@@ -271,15 +263,10 @@ def chat():
             log.info(f"← web+ai [{src}]: {reply[:60]}")
             return jsonify({"reply": reply, "source": "web+ai", "web_source": src})
 
-    # Standard AI (with or without an image)
-    reply = ai_query(user_msg or "Please describe and analyse this image.", history=history, image=image)
+    # Standard AI
+    reply = ai_query(user_msg, history=history)
     log.info(f"← ai: {reply[:60]}")
     return jsonify({"reply": reply, "source": "ai"})
-
-
-@app.errorhandler(413)
-def too_large(_e):
-    return jsonify({"reply": "That upload is too large. Please try a smaller photo.", "source": "system"}), 413
 
 
 @app.route("/api/health")
@@ -292,4 +279,6 @@ def health():
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 5000))
     log.info(f"Starting {BOT_NAME} AI on :{port}")
-    app.run(debug=os.getenv("DEBUG","true").lower()=="true", host="0.0.0.0", port=port)
+    is_frozen = getattr(sys, "frozen", False)
+    debug = (not is_frozen) and os.getenv("DEBUG", "true").lower() == "true"
+    app.run(debug=debug, use_reloader=False, host="127.0.0.1", port=port)
