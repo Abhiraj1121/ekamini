@@ -119,7 +119,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let showSuggestions = true;
   let pendingConfirmAction = null;
 
-  const API_ENDPOINT = 'https://ekamini.onrender.com/api/chat';
+  const API_ENDPOINT = '/api/chat';
 
   // ══════════════════════════════
   // THEME ENGINE
@@ -342,8 +342,8 @@ document.addEventListener('DOMContentLoaded', () => {
       item.innerHTML = isFull
         ? `<button class="history-main"><div class="history-title">${escapeHtml(s.title || 'New conversation')}</div>
              <div class="history-meta">${dt.toLocaleDateString([], { month:'short', day:'numeric' })} · ${dt.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' })} · ${(s.log||[]).length} msgs</div></button>
-           <button class="history-del" aria-label="Delete">🗑️</button>`
-        : `<span style="font-size:15px">💬</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(s.title || 'New conversation')}</span>`;
+           <button class="history-del" aria-label="Delete"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>`
+        : `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;color:var(--md-on-surface-variant)"><path d="M21 11.5a8.38 8.38 0 0 1-3.8 7.1 8.5 8.5 0 0 1-9.8-.3L3 21l1.9-4.9A8.5 8.5 0 0 1 12.5 3.5a8.48 8.48 0 0 1 8.5 8v0z"/></svg><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(s.title || 'New conversation')}</span>`;
 
       if (isFull) {
         item.querySelector('.history-main').addEventListener('click', () => { switchToSession(s); closeHistoryFull(); closeSheet(); vibrate(8); });
@@ -439,15 +439,54 @@ document.addEventListener('DOMContentLoaded', () => {
   // ══════════════════════════════
   // PHOTO ATTACH
   // ══════════════════════════════
+  const MAX_ATTACH_DIM = 1600;       // longest side, px — keeps uploads fast & within API limits
+  const ATTACH_JPEG_QUALITY = 0.82;
+
+  function compressImage(dataUrl) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        let { width, height } = img;
+        const scale = Math.min(1, MAX_ATTACH_DIM / Math.max(width, height));
+        width = Math.round(width * scale);
+        height = Math.round(height * scale);
+        const canvas = document.createElement('canvas');
+        canvas.width = width; canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', ATTACH_JPEG_QUALITY));
+      };
+      img.onerror = () => reject(new Error('Could not read that image.'));
+      img.src = dataUrl;
+    });
+  }
+
   mAttachBtn.addEventListener('click', () => mPhotoInput.click());
   mPhotoInput.addEventListener('change', () => {
     const file = mPhotoInput.files[0];
+    mPhotoInput.value = ''; // allow re-selecting the same file next time
     if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      showToast('Please choose an image file');
+      return;
+    }
+    const MAX_SOURCE_BYTES = 20 * 1024 * 1024; // 20MB raw photo ceiling before we even try
+    if (file.size > MAX_SOURCE_BYTES) {
+      showToast('That photo is too large — try a smaller one');
+      return;
+    }
+
     const reader = new FileReader();
-    reader.onload = () => {
-      attachedImage = reader.result;
-      mAttachThumb.src = attachedImage;
-      mAttachPreview.hidden = false;
+    reader.onerror = () => showToast('Could not read that image — please try again');
+    reader.onload = async () => {
+      try {
+        attachedImage = await compressImage(reader.result);
+        mAttachThumb.src = attachedImage;
+        mAttachPreview.hidden = false;
+      } catch {
+        showToast('Could not read that image — please try again');
+      }
     };
     reader.readAsDataURL(file);
   });
@@ -503,7 +542,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const finalize = () => {
       if (source) {
         const meta = document.createElement('div'); meta.className = 'meta-row';
-        const badge = document.createElement('span'); badge.className = 'badge'; badge.textContent = source;
+        const badge = document.createElement('span'); badge.className = 'badge'; badge.innerHTML = source;
         meta.appendChild(badge);
         meta.appendChild(document.createTextNode(new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' })));
         bubble.appendChild(meta);
@@ -592,7 +631,10 @@ document.addEventListener('DOMContentLoaded', () => {
       }).then(r => r.json());
 
       removeTyping(); isThinking = false; mSend.disabled = false;
-      const srcLabel = res.source === 'web+ai' ? '🌐 Web + AI' : res.source === 'local' ? '📁 Cached' : '🤖 AI';
+      const ICON_WEB  = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><ellipse cx="12" cy="12" rx="4" ry="9"/><line x1="3" y1="12" x2="21" y2="12"/></svg>';
+      const ICON_LOCAL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/></svg>';
+      const ICON_AI   = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="8" width="16" height="12" rx="2"/><path d="M12 8V4M9 4h6"/><circle cx="9" cy="14" r="1.2" fill="currentColor" stroke="none"/><circle cx="15" cy="14" r="1.2" fill="currentColor" stroke="none"/></svg>';
+      const srcLabel = res.source === 'web+ai' ? `${ICON_WEB} Web + AI` : res.source === 'local' ? `${ICON_LOCAL} Cached` : `${ICON_AI} AI`;
       chatHistory.push({ role:'assistant', content: res.reply });
 
       setTimeout(() => {
@@ -756,7 +798,7 @@ document.addEventListener('DOMContentLoaded', () => {
     btnWebToggle.setAttribute('aria-pressed', String(webSearchEnabled));
     swWeb.checked = webSearchEnabled;
     savePrefs();
-    showToast(webSearchEnabled ? '🌐 Web search on' : 'Web search off');
+    showToast(webSearchEnabled ? 'Web search on' : 'Web search off');
     vibrate(6);
   });
 
