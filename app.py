@@ -16,6 +16,7 @@ log = logging.getLogger("eka")
 
 app = Flask(__name__, static_folder="static", template_folder="templates")
 CORS(app)
+app.config["MAX_CONTENT_LENGTH"] = 12 * 1024 * 1024  # 12MB — generous for a compressed photo
 
 AI_API_URL = os.getenv("AI_API_URL", "https://openrouter.ai/api/v1/chat/completions")
 AI_API_KEY = os.getenv("AI_API_KEY", "")
@@ -30,6 +31,16 @@ MODELS = [
     {"id": "poolside/laguna-xs.2:free",      "max_tokens": 700,  "temp": 0.60},
     {"id": "google/gemma-3-27b-it:free",              "max_tokens": 700,  "temp": 0.65},
 ]
+
+# ── Vision-capable models, tried first when an image is attached ──
+# (the text-only MODELS above would silently ignore the image otherwise)
+VISION_MODELS = [
+    {"id": "meta-llama/llama-4-maverick:free", "max_tokens": 900, "temp": 0.65},
+    {"id": "meta-llama/llama-4-scout:free",    "max_tokens": 900, "temp": 0.65},
+    {"id": "google/gemma-3-27b-it:free",       "max_tokens": 700, "temp": 0.65},
+]
+
+MAX_IMAGE_B64_CHARS = 8_000_000  # ~6MB decoded — generous but bounded
 
 # ── System prompts ──
 SYS_BASE = f"""You are {BOT_NAME}, a smart helpful AI built by {DEV_NAME} in India 🇮🇳.
@@ -140,7 +151,7 @@ def clean(text: str) -> str:
 # ══════════════════════════════════════
 # AI CORE
 # ══════════════════════════════════════
-def ai_query(user_input: str, history: list = None, system: str = None) -> str:
+def ai_query(user_input: str, history: list = None, system: str = None, image: str = None) -> str:
     if not AI_API_KEY:
         return "AI backend not configured. Please set AI_API_KEY in your .env file."
 
@@ -151,16 +162,28 @@ def ai_query(user_input: str, history: list = None, system: str = None) -> str:
             if m.get("role") in ("user", "assistant") and m.get("content"):
                 messages.append({"role": m["role"], "content": m["content"]})
 
-    messages.append({"role": "user", "content": user_input})
+    if image:
+        # Multimodal content block — OpenRouter/OpenAI-style vision message
+        messages.append({
+            "role": "user",
+            "content": [
+                {"type": "text", "text": user_input},
+                {"type": "image_url", "image_url": {"url": image}},
+            ],
+        })
+        models_to_try = VISION_MODELS
+    else:
+        messages.append({"role": "user", "content": user_input})
+        models_to_try = MODELS
 
     headers = {
         "Authorization": f"Bearer {AI_API_KEY}",
         "Content-Type": "application/json",
-        "HTTP-Referer": "https://eka-dev1.onrender.com",
+        "HTTP-Referer": "https://ekamini.onrender.com",
         "X-Title": f"{BOT_NAME} AI",
     }
 
-    for model in MODELS:
+    for model in models_to_try:
         try:
             t0   = time.time()
             body = {"model": model["id"], "messages": messages,
@@ -221,19 +244,26 @@ def chat():
     user_msg = (payload.get("message") or "").strip()
     history  = payload.get("history", [])
     use_web  = payload.get("wiki", False)
+    image    = (payload.get("image") or "").strip() or None
 
-    if not user_msg:
+    if image:
+        if not image.startswith("data:image/"):
+            return jsonify({"reply": "That doesn't look like a valid image. Please try a different photo.", "source": "system"})
+        if len(image) > MAX_IMAGE_B64_CHARS:
+            return jsonify({"reply": "That image is too large. Please try a smaller photo (under ~6MB).", "source": "system"})
+
+    if not user_msg and not image:
         return jsonify({"reply": "Your message seems empty. What would you like to ask?", "source": "system"})
 
-    log.info(f"→ {user_msg[:80]}")
+    log.info(f"→ {user_msg[:80]}" + (" [+image]" if image else ""))
 
-    # Quick path
-    quick = quick_reply(user_msg)
+    # Quick path (skip when an image is attached — it needs a real look, not a canned reply)
+    quick = quick_reply(user_msg) if not image else None
     if quick:
         return jsonify({"reply": quick, "source": "system"})
 
-    # Web search path
-    if use_web:
+    # Web search path (skipped for image messages — vision models answer directly)
+    if use_web and not image:
         content, src = web_search(user_msg)
         if content:
             system = SYS_WEB.replace("{web_content}", content)
@@ -241,10 +271,15 @@ def chat():
             log.info(f"← web+ai [{src}]: {reply[:60]}")
             return jsonify({"reply": reply, "source": "web+ai", "web_source": src})
 
-    # Standard AI
-    reply = ai_query(user_msg, history=history)
+    # Standard AI (with or without an image)
+    reply = ai_query(user_msg or "Please describe and analyse this image.", history=history, image=image)
     log.info(f"← ai: {reply[:60]}")
     return jsonify({"reply": reply, "source": "ai"})
+
+
+@app.errorhandler(413)
+def too_large(_e):
+    return jsonify({"reply": "That upload is too large. Please try a smaller photo.", "source": "system"}), 413
 
 
 @app.route("/api/health")
