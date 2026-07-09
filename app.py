@@ -4,39 +4,17 @@ Real-time web: DuckDuckGo (free, no key) + Wikipedia
 Models: Llama 4 Maverick → Scout → Qwen3 → Mistral (all free via OpenRouter)
 """
 
-import sys, os, re, time, logging, requests
+import os, re, time, logging, requests
 from datetime import datetime
 from flask import Flask, render_template, request, jsonify
 from dotenv import load_dotenv
 from flask_cors import CORS
 
-def _base_dir():
-    # Works both running from source and from a PyInstaller-frozen .exe
-    if getattr(sys, "frozen", False):
-        return sys._MEIPASS
-    return os.path.dirname(os.path.abspath(__file__))
-
-def _config_dir():
-    # Persistent, writable location for the user's saved API key (outside the read-only exe bundle)
-    root = os.getenv("APPDATA") or os.path.expanduser("~")
-    path = os.path.join(root, "EkaAI")
-    os.makedirs(path, exist_ok=True)
-    return path
-
-BASE_DIR   = _base_dir()
-CONFIG_ENV = os.path.join(_config_dir(), ".env")
-
-load_dotenv(CONFIG_ENV)   # user's saved key (created by desktop_launcher.py on first run)
-load_dotenv()             # optional local .env, e.g. for dev
-
+load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s", datefmt="%H:%M:%S")
 log = logging.getLogger("eka")
 
-app = Flask(
-    __name__,
-    static_folder=os.path.join(BASE_DIR, "static"),
-    template_folder=os.path.join(BASE_DIR, "templates"),
-)
+app = Flask(__name__, static_folder="static", template_folder="templates")
 CORS(app)
 
 AI_API_URL = os.getenv("AI_API_URL", "https://openrouter.ai/api/v1/chat/completions")
@@ -279,6 +257,4 @@ def health():
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 5000))
     log.info(f"Starting {BOT_NAME} AI on :{port}")
-    is_frozen = getattr(sys, "frozen", False)
-    debug = (not is_frozen) and os.getenv("DEBUG", "true").lower() == "true"
-    app.run(debug=debug, use_reloader=False, host="127.0.0.1", port=port)
+    app.run(debug=os.getenv("DEBUG","true").lower()=="true", host="0.0.0.0", port=port)
