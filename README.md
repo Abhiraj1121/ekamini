@@ -12,7 +12,7 @@
 ### ✦ Intelligent AI Chat Assistant ✦
 
 [![Live Demo](https://img.shields.io/badge/🌐_Live_Demo-Visit_Now-6c63ff?style=for-the-badge)](https://abhiraj1121.github.io/eka/)
-[![GitHub](https://img.shields.io/badge/GitHub-ekamini-181717?style=for-the-badge&logo=github)](https://github.com/Abhiraj1121/ekamini)
+[![GitHub](https://img.shields.io/badge/GitHub-eka-181717?style=for-the-badge&logo=github)](https://github.com/Abhiraj1121/eka)
 [![License](https://img.shields.io/badge/Legal_Docs-Read_Here-ff6b6b?style=for-the-badge)](https://abhiraj1121.github.io/ai-tc/)
 [![Render](https://img.shields.io/badge/Deployed_on-Render-46E3B7?style=for-the-badge&logo=render)](https://render.com)
 
@@ -159,7 +159,7 @@ Open `http://127.0.0.1:5000` in your browser.
 **Abhi**
 Developer & Designer
 
-[![GitHub](https://img.shields.io/badge/GitHub-Abhiraj1121-181717?style=for-the-badge&logo=github)](https://github.com/Abhiraj1121)
+[![GitHub](https://img.shields.io/badge/GitHub-Abhiraj1121-181717?style=for-the-badge&logo=github)](https://github.com/Abhiraj1121/)
 
 *Built with curiosity. Deployed with confidence.*
 
@@ -168,5 +168,7 @@ Developer & Designer
 ---
 
 <div align="center">
-<sub>© Eka — Legal Docs: <a href="https://abhiraj1121.github.io/ai-tc/">abhiraj1121.github.io/ai-tc</a></sub>
+<div align="center">
+<sub>© Eka — License: <a href="[https://raw.githubusercontent.com/Abhiraj1121/eka/refs/heads/main/LICENSE?token=GHSAT0AAAAAAECNV3LBCGOOER2BB74T5P3S2SSW57A](https://raw.githubusercontent.com/Abhiraj1121/eka/refs/heads/main/LICENSE?token=GHSAT0AAAAAAECNV3LBPFJ3XEUXMA4JUZ6W2SSXF6Q)">View License File</a></sub>
+</div>
 </div>
