@@ -125,7 +125,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let showSuggestions = true;
   let pendingConfirmAction = null;
 
-  const API_ENDPOINT = '/api/chat';
+  const API_ENDPOINT = 'https://ekamini.onrender.com/api/chat';
 
   // ══════════════════════════════
   // THEME ENGINE
