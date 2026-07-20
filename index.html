@@ -12,7 +12,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="style.css" />
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
 </head>
 <body>
 
@@ -22,6 +22,7 @@
   <div class="splash-blob b2"></div>
   <div class="splash-blob b3"></div>
   <div class="splash-mark">
+    <div class="splash-ring-orbit"></div>
     <svg width="56" height="56" viewBox="0 0 56 56" fill="none">
       <circle cx="28" cy="28" r="26" class="mark-ring" stroke="url(#g1)" stroke-width="2.5"/>
       <path d="M28 14 L28 28 L38 34" class="mark-hand" stroke="url(#g1)" stroke-width="3.5" stroke-linecap="round" fill="none"/>
@@ -32,6 +33,7 @@
     <span style="--i:0">E</span><span style="--i:1">k</span><span style="--i:2">a</span>
   </div>
   <div class="splash-tag">your everyday AI</div>
+  <div class="splash-progress"><span></span><span></span><span></span></div>
 </div>
 
 <!-- ═══════════ SIGN-IN ═══════════ -->
@@ -270,6 +272,15 @@
             </div>
             <svg class="chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
           </div>
+          <div class="setting-divider"></div>
+          <div class="setting-row" id="rowVoice">
+            <div class="setting-row-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a4 4 0 0 0-4 4v6a4 4 0 0 0 8 0V5a4 4 0 0 0-4-4z"/><path d="M19 10v1a7 7 0 0 1-14 0v-1M12 18v4M8 22h8"/></svg></div>
+            <div class="setting-row-text">
+              <div class="setting-row-title">Speaking voice</div>
+              <div class="setting-row-sub" id="voiceSub">Auto (best available)</div>
+            </div>
+            <svg class="chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+          </div>
         </div>
       </div>
 
@@ -362,6 +373,7 @@
         <button class="picker-option" data-val="system"><span class="po-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18z" fill="currentColor" stroke="none"/></svg></span><span>System default</span><span class="po-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></span></button>
         <button class="picker-option" data-val="dark"><span class="po-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5z"/></svg></span><span>Dark</span><span class="po-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></span></button>
         <button class="picker-option" data-val="light"><span class="po-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2.5M12 19.5V22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M2 12h2.5M19.5 12H22M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8"/></svg></span><span>Light</span><span class="po-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></span></button>
+        <button class="picker-option" data-val="black"><span class="po-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9" fill="currentColor" stroke="none"/></svg></span><span>Pure black</span><span class="po-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></span></button>
       </div>
     </div>
   </div>
@@ -391,6 +403,17 @@
         <button class="picker-option" data-val="en-GB"><span class="po-icon">UK</span><span>English (UK)</span><span class="po-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></span></button>
         <button class="picker-option" data-val="en-US"><span class="po-icon">US</span><span>English (US)</span><span class="po-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></span></button>
         <button class="picker-option" data-val="hi-IN"><span class="po-icon">हि</span><span>हिन्दी (Hindi)</span><span class="po-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></span></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Bottom-sheet: speaking voice picker (options populated at runtime from available browser voices) ── -->
+  <div class="sheet-scrim" id="pickVoiceOverlay">
+    <div class="sheet sheet-picker" id="pickVoiceSheet">
+      <div class="sheet-handle"></div>
+      <div class="picker-title">Speaking voice</div>
+      <div class="picker-options" id="voiceOptions">
+        <button class="picker-option" data-val="auto"><span class="po-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a4 4 0 0 0-4 4v6a4 4 0 0 0 8 0V5a4 4 0 0 0-4-4z"/><path d="M19 10v1a7 7 0 0 1-14 0v-1M12 18v4M8 22h8"/></svg></span><span>Auto (best available)</span><span class="po-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></span></button>
       </div>
     </div>
   </div>
@@ -438,6 +461,6 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-<script src="app.js"></script>
+<script src="{{ url_for('static', filename='app.js') }}"></script>
 </body>
 </html>

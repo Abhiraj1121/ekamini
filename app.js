@@ -66,6 +66,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const swHaptic = document.getElementById('swHaptic');
   const rowLang = document.getElementById('rowLang');
   const langSub = document.getElementById('langSub');
+  const rowVoice = document.getElementById('rowVoice');
+  const voiceSub = document.getElementById('voiceSub');
   const btnChatHistory = document.getElementById('btnChatHistory');
   const historyCountSub = document.getElementById('historyCountSub');
   const btnExportChat = document.getElementById('btnExportChat');
@@ -79,6 +81,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const personaOptions = document.getElementById('personaOptions');
   const pickLangOverlay = document.getElementById('pickLangOverlay');
   const langOptions = document.getElementById('langOptions');
+  const pickVoiceOverlay = document.getElementById('pickVoiceOverlay');
+  const voiceOptions = document.getElementById('voiceOptions');
 
   const mHistoryOverlay = document.getElementById('mHistoryOverlay');
   const mHistorySheet = document.getElementById('mHistorySheet');
@@ -110,6 +114,8 @@ document.addEventListener('DOMContentLoaded', () => {
   let soundOn = true;
   let hapticOn = true;
   let currentLang = 'auto';
+  let selectedVoiceURI = 'auto';
+  let availableVoices = [];
   let currentSessionId = null;
   let themeMode = 'system';     // system | dark | light
   let accentColor = 'violet';
@@ -119,7 +125,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let showSuggestions = true;
   let pendingConfirmAction = null;
 
-  const API_ENDPOINT = 'https://ekamini.onrender.com/api/chat';
+  const API_ENDPOINT = '/api/chat';
 
   // ══════════════════════════════
   // THEME ENGINE
@@ -139,13 +145,30 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   mq.addEventListener?.('change', () => { if (themeMode === 'system') applyTheme(); });
 
+  // Apply saved theme/accent/font-size right away — otherwise the splash and
+  // sign-in screens flash the hardcoded default palette before enterApp() runs.
+  (function applyThemeEarly() {
+    const p = loadPrefs();
+    themeMode = p.themeMode || 'system';
+    accentColor = p.accentColor || 'violet';
+    fontSize = p.fontSize === undefined ? 1 : p.fontSize;
+    reduceMotion = !!p.reduceMotion;
+    applyTheme();
+  })();
+
   const ACCENTS = [
-    { id:'violet', label:'Violet', hex:'#9C7EDC' },
-    { id:'teal',   label:'Teal',   hex:'#5BC9BA' },
-    { id:'rose',   label:'Rose',   hex:'#E88CA3' },
-    { id:'amber',  label:'Amber',  hex:'#E3A94A' },
-    { id:'blue',   label:'Blue',   hex:'#6E97DE' },
-    { id:'sage',   label:'Sage',   hex:'#7CB07A' },
+    { id:'violet',  label:'Violet',  hex:'#9C7EDC' },
+    { id:'teal',    label:'Teal',    hex:'#5BC9BA' },
+    { id:'rose',    label:'Rose',    hex:'#E88CA3' },
+    { id:'amber',   label:'Amber',   hex:'#E3A94A' },
+    { id:'blue',    label:'Blue',    hex:'#6E97DE' },
+    { id:'sage',    label:'Sage',    hex:'#7CB07A' },
+    { id:'crimson', label:'Crimson', hex:'#E0464A' },
+    { id:'indigo',  label:'Indigo',  hex:'#5C5FCE' },
+    { id:'emerald', label:'Emerald', hex:'#22B074' },
+    { id:'coral',   label:'Coral',   hex:'#E87A46' },
+    { id:'ocean',   label:'Ocean',   hex:'#1AA0C4' },
+    { id:'slate',   label:'Slate',   hex:'#6B7086' },
   ];
   function buildSwatches() {
     swatchRow.innerHTML = '';
@@ -168,7 +191,7 @@ document.addEventListener('DOMContentLoaded', () => {
     fontSizeSub.textContent = FONT_LABELS[fontSize];
   }
 
-  const THEME_LABELS = { system:'System default', dark:'Dark', light:'Light' };
+  const THEME_LABELS = { system:'System default', dark:'Dark', light:'Light', black:'Pure black' };
   const PERSONA_LABELS = { balanced:'Balanced', concise:'Concise & direct', detailed:'Detailed & thorough', creative:'Creative & casual' };
   const LANG_LABELS = { auto:'Auto detect', 'en-IN':'English (India)', 'en-GB':'English (UK)', 'en-US':'English (US)', 'hi-IN':'हिन्दी (Hindi)' };
 
@@ -229,7 +252,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function savePrefs() {
     localStorage.setItem('eka_prefs', JSON.stringify({
       muted:isMuted, web:webSearchEnabled, sound:soundOn, haptic:hapticOn, lang:currentLang,
-      themeMode, accentColor, fontSize, reduceMotion, persona, showSuggestions
+      themeMode, accentColor, fontSize, reduceMotion, persona, showSuggestions, voiceURI:selectedVoiceURI
     }));
   }
   function applyPrefs() {
@@ -245,6 +268,7 @@ document.addEventListener('DOMContentLoaded', () => {
     reduceMotion = !!p.reduceMotion;
     persona = p.persona || 'balanced';
     showSuggestions = p.showSuggestions === undefined ? true : !!p.showSuggestions;
+    selectedVoiceURI = p.voiceURI || 'auto';
 
     swMute.checked = isMuted;
     swWeb.checked = webSearchEnabled;
@@ -260,6 +284,7 @@ document.addEventListener('DOMContentLoaded', () => {
     applyFontSizeUI();
     buildSwatches();
     applyTheme();
+    updateVoiceSub();
     if (recognition) recognition.lang = currentLang === 'auto' ? 'en-IN' : currentLang;
   }
 
@@ -391,6 +416,8 @@ document.addEventListener('DOMContentLoaded', () => {
   // RIPPLE
   // ══════════════════════════════
   function attachRipple(el) {
+    if (!el || el.dataset.rippleBound) return; // avoid stacking duplicate listeners on repeat calls
+    el.dataset.rippleBound = '1';
     el.addEventListener('click', function (e) {
       const rect = el.getBoundingClientRect();
       const r = document.createElement('span');
@@ -539,6 +566,52 @@ document.addEventListener('DOMContentLoaded', () => {
     const content = document.createElement('div');
     bubble.appendChild(content);
 
+    const ICON_COPY  = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+    const ICON_CHECK = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><polyline points="20 6 9 17 4 12"/></svg>';
+    const ICON_LIKE  = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3z"/><path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>';
+    const ICON_DISLIKE = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3z"/><path d="M17 2h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"/></svg>';
+
+    function copyToClipboard(str, btn, toastMsg) {
+      navigator.clipboard?.writeText(str);
+      if (btn) {
+        const original = btn.innerHTML;
+        btn.classList.add('copied'); btn.innerHTML = ICON_CHECK;
+        setTimeout(() => { btn.classList.remove('copied'); btn.innerHTML = original; }, 1400);
+      }
+      if (toastMsg) showToast(toastMsg);
+      vibrate(6);
+    }
+
+    // Adds a header (language + copy button) to every fenced code block in a rendered bubble.
+    function enhanceCodeBlocks(root) {
+      root.querySelectorAll('pre').forEach(pre => {
+        if (pre.dataset.enhanced) return;
+        pre.dataset.enhanced = '1';
+        const codeEl = pre.querySelector('code');
+        const langMatch = codeEl && codeEl.className.match(/language-(\w+)/);
+        const lang = langMatch ? langMatch[1] : 'code';
+
+        const wrap = document.createElement('div'); wrap.className = 'code-block';
+        pre.parentNode.insertBefore(wrap, pre);
+
+        const head = document.createElement('div'); head.className = 'code-block-head';
+        const langLabel = document.createElement('span'); langLabel.className = 'code-lang'; langLabel.textContent = lang;
+        const copyBtn = document.createElement('button'); copyBtn.className = 'code-copy-btn'; copyBtn.type = 'button';
+        copyBtn.innerHTML = ICON_COPY + '<span>Copy</span>';
+        copyBtn.addEventListener('click', () => {
+          copyToClipboard((codeEl || pre).innerText, null);
+          copyBtn.classList.add('copied');
+          copyBtn.innerHTML = ICON_CHECK + '<span>Copied</span>';
+          setTimeout(() => { copyBtn.classList.remove('copied'); copyBtn.innerHTML = ICON_COPY + '<span>Copy</span>'; }, 1400);
+        });
+        attachRipple(copyBtn);
+        head.appendChild(langLabel); head.appendChild(copyBtn);
+
+        wrap.appendChild(head);
+        wrap.appendChild(pre);
+      });
+    }
+
     const finalize = () => {
       if (source) {
         const meta = document.createElement('div'); meta.className = 'meta-row';
@@ -547,17 +620,46 @@ document.addEventListener('DOMContentLoaded', () => {
         meta.appendChild(document.createTextNode(new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' })));
         bubble.appendChild(meta);
       }
+
       if (who === 'bot') {
+        enhanceCodeBlocks(content);
+
         const actions = document.createElement('div'); actions.className = 'msg-actions';
-        const copyBtn = document.createElement('button'); copyBtn.className = 'msg-action-btn'; copyBtn.title = 'Copy';
-        copyBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
-        copyBtn.addEventListener('click', () => { navigator.clipboard?.writeText(text); showToast('Copied to clipboard'); vibrate(6); });
+        const copyBtn = document.createElement('button'); copyBtn.className = 'msg-action-btn'; copyBtn.title = 'Copy message';
+        copyBtn.innerHTML = ICON_COPY;
+        copyBtn.addEventListener('click', () => copyToClipboard(text, copyBtn, 'Copied to clipboard'));
+
         const likeBtn = document.createElement('button'); likeBtn.className = 'msg-action-btn'; likeBtn.title = 'Good response';
-        likeBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z"/></svg>';
-        likeBtn.addEventListener('click', () => { likeBtn.classList.toggle('liked'); vibrate(6); if(likeBtn.classList.contains('liked')) showToast('Thanks for the feedback'); });
-        actions.appendChild(copyBtn); actions.appendChild(likeBtn);
+        likeBtn.innerHTML = ICON_LIKE;
+        const dislikeBtn = document.createElement('button'); dislikeBtn.className = 'msg-action-btn'; dislikeBtn.title = 'Bad response';
+        dislikeBtn.innerHTML = ICON_DISLIKE;
+
+        likeBtn.addEventListener('click', () => {
+          const wasLiked = likeBtn.classList.contains('liked');
+          likeBtn.classList.toggle('liked', !wasLiked);
+          dislikeBtn.classList.remove('disliked');
+          vibrate(6);
+          if (!wasLiked) showToast('Thanks for the feedback');
+        });
+        dislikeBtn.addEventListener('click', () => {
+          const wasDisliked = dislikeBtn.classList.contains('disliked');
+          dislikeBtn.classList.toggle('disliked', !wasDisliked);
+          likeBtn.classList.remove('liked');
+          vibrate(6);
+          if (!wasDisliked) showToast('Thanks — we\u2019ll use this to improve');
+        });
+
+        actions.appendChild(copyBtn); actions.appendChild(likeBtn); actions.appendChild(dislikeBtn);
         bubble.appendChild(actions);
-        attachRipple(copyBtn); attachRipple(likeBtn);
+        attachRipple(copyBtn); attachRipple(likeBtn); attachRipple(dislikeBtn);
+      } else if (who === 'user' && text) {
+        const actions = document.createElement('div'); actions.className = 'msg-actions';
+        const copyBtn = document.createElement('button'); copyBtn.className = 'msg-action-btn'; copyBtn.title = 'Copy message';
+        copyBtn.innerHTML = ICON_COPY;
+        copyBtn.addEventListener('click', () => copyToClipboard(text, copyBtn, 'Copied to clipboard'));
+        actions.appendChild(copyBtn);
+        bubble.appendChild(actions);
+        attachRipple(copyBtn);
       }
     };
 
@@ -667,21 +769,94 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // ══════════════════════════════
-  // TTS
+  // TTS — voice discovery & selection
   // ══════════════════════════════
-  function speak(text, onEnd = null) {
-    if (!text || isMuted || !('speechSynthesis' in window)) { onEnd?.(); return; }
+  // Browsers load voices asynchronously (esp. Chrome), so we listen for 'voiceschanged'
+  // rather than reading the list once at startup — otherwise getVoices() often returns [].
+  function refreshVoices() {
+    availableVoices = window.speechSynthesis ? speechSynthesis.getVoices() : [];
+    buildVoiceOptions();
+  }
+  if ('speechSynthesis' in window) {
+    refreshVoices();
+    speechSynthesis.addEventListener('voiceschanged', refreshVoices);
+  }
+
+  // Ranks a voice by how natural + female it's likely to sound, from its name/metadata.
+  // There's no standard "gender" field in the Web Speech API, so this is a best-effort
+  // heuristic based on the naming conventions every major platform actually uses.
+  function voiceScore(v) {
+    const n = v.name.toLowerCase();
+    let s = 0;
+    if (/female|woman|girl|aria|jenny|zira|samantha|susan|neerja|swara|kavya|heera|salli|joanna|amy|emma|libby|sonia|natasha|priya|kalpana|veena|moira|tessa|karen|victoria/.test(n)) s += 6;
+    if (/\bmale\b|\bman\b|david|guy|ravi|daniel|george|arthur|fred/.test(n)) s -= 8;
+    if (/neural|natural|premium|online|enhanced|plus/.test(n)) s += 5;
+    if (/google/.test(n)) s += 3;
+    if (v.localService === false) s += 1; // network-backed voices are usually higher quality
+    return s;
+  }
+
+  function pickBestVoice(lang) {
+    if (!availableVoices.length) return null;
+    const wantHindi = lang.startsWith('hi');
+    let pool = availableVoices.filter(v => wantHindi ? v.lang.startsWith('hi') : /^en/i.test(v.lang));
+    if (!pool.length) pool = availableVoices;
+    return [...pool].sort((a, b) => voiceScore(b) - voiceScore(a))[0] || null;
+  }
+
+  function buildVoiceOptions() {
+    if (!voiceOptions) return;
+    const relevant = availableVoices.filter(v => /^en|^hi/i.test(v.lang));
+    const list = (relevant.length ? relevant : availableVoices).slice()
+      .sort((a, b) => voiceScore(b) - voiceScore(a));
+    voiceOptions.querySelectorAll('.picker-option:not([data-val="auto"])').forEach(b => b.remove());
+    list.slice(0, 14).forEach(v => {
+      const btn = document.createElement('button');
+      btn.className = 'picker-option'; btn.dataset.val = v.voiceURI;
+      const icon = document.createElement('span'); icon.className = 'po-icon';
+      icon.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a4 4 0 0 0-4 4v6a4 4 0 0 0 8 0V5a4 4 0 0 0-4-4z"/><path d="M19 10v1a7 7 0 0 1-14 0v-1M12 18v4M8 22h8"/></svg>';
+      const label = document.createElement('span'); label.textContent = v.name.replace(/^Microsoft |^Google /, '') + ' \u00b7 ' + v.lang;
+      const check = document.createElement('span'); check.className = 'po-check';
+      check.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>';
+      btn.appendChild(icon); btn.appendChild(label); btn.appendChild(check);
+      voiceOptions.appendChild(btn);
+    });
+    updateVoiceSub();
+  }
+
+  function updateVoiceSub() {
+    if (!voiceSub) return;
+    if (selectedVoiceURI === 'auto') { voiceSub.textContent = 'Auto (best available)'; return; }
+    const v = availableVoices.find(x => x.voiceURI === selectedVoiceURI);
+    voiceSub.textContent = v ? v.name.replace(/^Microsoft |^Google /, '') : 'Auto (best available)';
+  }
+
+  function speak(text, onEnd = null, force = false) {
+    if (!text || (isMuted && !force) || !('speechSynthesis' in window)) { onEnd?.(); return; }
     speechSynthesis.cancel();
     const utter = new SpeechSynthesisUtterance(text);
-    utter.rate = 1.0; utter.pitch = 1.05;
     const isHindi = /[\u0900-\u097F]/.test(text);
     utter.lang = isHindi ? 'hi-IN' : 'en-GB';
+    // Slightly slower + a touch higher than default — closer to natural conversational cadence
+    // than the flat 1.0/1.0 robotic default, without sounding sped-up or cartoonish.
+    utter.rate = 0.98; utter.pitch = 1.04; utter.volume = 1;
+
+    const chosen = selectedVoiceURI === 'auto'
+      ? pickBestVoice(utter.lang)
+      : (availableVoices.find(v => v.voiceURI === selectedVoiceURI) || pickBestVoice(utter.lang));
+    if (chosen) { utter.voice = chosen; utter.lang = chosen.lang || utter.lang; }
+
     utter.onstart = () => { speakGrid.hidden = false; };
     utter.onend   = () => { speakGrid.hidden = true; onEnd?.(); };
     utter.onerror = () => { speakGrid.hidden = true; onEnd?.(); };
     speechSynthesis.speak(utter);
   }
   sgStop.addEventListener('click', () => { speechSynthesis.cancel(); speakGrid.hidden = true; setStatus('ready'); vibrate(6); });
+
+  rowVoice.addEventListener('click', () => openPicker(pickVoiceOverlay, voiceOptions, selectedVoiceURI, (val) => {
+    selectedVoiceURI = val; savePrefs(); updateVoiceSub();
+    speak("Hi, I'm Eka. This is how I sound now.", null, true);
+  }));
 
   // ══════════════════════════════
   // SPEECH RECOGNITION
@@ -709,7 +884,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const profile = loadProfile();
     if (profile && profile.email) enterApp(profile);
     else signin.classList.add('show');
-  }, 2000);
+  }, 1800);
 
   function validEmail(v) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim()); }
 
@@ -840,7 +1015,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (recognition) recognition.lang = val === 'auto' ? 'en-IN' : val;
     showToast('Voice language set to ' + LANG_LABELS[val]);
   }));
-  [pickThemeOverlay, pickPersonaOverlay, pickLangOverlay].forEach(ov => {
+  [pickThemeOverlay, pickPersonaOverlay, pickLangOverlay, pickVoiceOverlay].forEach(ov => {
     ov.addEventListener('click', (e) => { if (e.target === ov) closePicker(ov); });
     ov.querySelector('.sheet').addEventListener('click', (e) => e.stopPropagation());
   });
