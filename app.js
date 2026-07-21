@@ -15,6 +15,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const viewSettings = document.getElementById('viewSettings');
   const btnMenu = document.getElementById('btnMenu');
   const btnWebToggle = document.getElementById('btnWebToggle');
+  const btnImageToggle = document.getElementById('btnImageToggle');
   const btnNewChat = document.getElementById('btnNewChat');
   const btnSettingsBack = document.getElementById('btnSettingsBack');
 
@@ -60,6 +61,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const rowPersona = document.getElementById('rowPersona');
   const personaSub = document.getElementById('personaSub');
   const swWeb = document.getElementById('swWeb');
+  const swImage = document.getElementById('swImage');
   const swSuggestions = document.getElementById('swSuggestions');
   const swMute = document.getElementById('swMute');
   const swSound = document.getElementById('swSound');
@@ -108,6 +110,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let renderLog = [];
   let isMuted = false;
   let webSearchEnabled = false;
+  let imageGenEnabled = false;
   let isThinking = false;
   let attachedImage = null;
   let recognition = null;
@@ -116,6 +119,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let currentLang = 'auto';
   let selectedVoiceURI = 'auto';
   let availableVoices = [];
+  let activeSpeakBtn = null; // the msg-action-btn currently reading aloud, if any
   let currentSessionId = null;
   let themeMode = 'system';     // system | dark | light
   let accentColor = 'violet';
@@ -125,7 +129,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let showSuggestions = true;
   let pendingConfirmAction = null;
 
-  const API_ENDPOINT = 'https://ekamini.onrender.com/api/chat';
+  const API_ENDPOINT = '/api/chat';
 
   // ══════════════════════════════
   // THEME ENGINE
@@ -251,7 +255,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   function savePrefs() {
     localStorage.setItem('eka_prefs', JSON.stringify({
-      muted:isMuted, web:webSearchEnabled, sound:soundOn, haptic:hapticOn, lang:currentLang,
+      muted:isMuted, web:webSearchEnabled, image:imageGenEnabled, sound:soundOn, haptic:hapticOn, lang:currentLang,
       themeMode, accentColor, fontSize, reduceMotion, persona, showSuggestions, voiceURI:selectedVoiceURI
     }));
   }
@@ -259,6 +263,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const p = loadPrefs();
     isMuted = !!p.muted;
     webSearchEnabled = !!p.web;
+    imageGenEnabled = !!p.image;
     soundOn = p.sound === undefined ? true : !!p.sound;
     hapticOn = p.haptic === undefined ? true : !!p.haptic;
     currentLang = p.lang || 'auto';
@@ -272,6 +277,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     swMute.checked = isMuted;
     swWeb.checked = webSearchEnabled;
+    swImage.checked = imageGenEnabled;
     swSound.checked = soundOn;
     swHaptic.checked = hapticOn;
     swSuggestions.checked = showSuggestions;
@@ -281,6 +287,9 @@ document.addEventListener('DOMContentLoaded', () => {
     personaSub.textContent = PERSONA_LABELS[persona] || 'Balanced';
     btnWebToggle.classList.toggle('active', webSearchEnabled);
     btnWebToggle.setAttribute('aria-pressed', String(webSearchEnabled));
+    btnImageToggle.classList.toggle('active', imageGenEnabled);
+    btnImageToggle.setAttribute('aria-pressed', String(imageGenEnabled));
+    mMsg.placeholder = imageGenEnabled ? 'Describe the image to generate…' : 'Message Eka…';
     applyFontSizeUI();
     buildSwatches();
     applyTheme();
@@ -323,6 +332,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  function renderLogEntry(m) {
+    if (m.genImg) { addImageBubble(m.genImg, m.genPrompt || '', true); }
+    else { addBubble(m.text, m.who, m.source || '', false, m.imgData || null, true); }
+  }
+
   function restoreLastSession() {
     const lastId = localStorage.getItem('eka_current_session');
     const sessions = loadSessions();
@@ -332,7 +346,7 @@ document.addEventListener('DOMContentLoaded', () => {
       chatHistory = found.history || [];
       renderLog = (found.log || []).slice();
       chat.innerHTML = '';
-      renderLog.forEach(m => addBubble(m.text, m.who, m.source || '', false, m.imgData || null, true));
+      renderLog.forEach(renderLogEntry);
       renderSuggestions([]);
       return true;
     }
@@ -346,7 +360,7 @@ document.addEventListener('DOMContentLoaded', () => {
     chatHistory = s.history || [];
     renderLog = (s.log || []).slice();
     chat.innerHTML = '';
-    renderLog.forEach(m => addBubble(m.text, m.who, m.source || '', false, m.imgData || null, true));
+    renderLog.forEach(renderLogEntry);
     renderSuggestions([]);
   }
 
@@ -548,6 +562,14 @@ document.addEventListener('DOMContentLoaded', () => {
   // ══════════════════════════════
   // BUBBLE RENDERING
   // ══════════════════════════════
+  // Shared icon strings used by message action buttons + the global stop control
+  const ICON_COPY  = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+  const ICON_CHECK = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><polyline points="20 6 9 17 4 12"/></svg>';
+  const ICON_LIKE  = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3z"/><path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>';
+  const ICON_DISLIKE = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3z"/><path d="M17 2h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"/></svg>';
+  const ICON_SPEAKER = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg>';
+  const ICON_STOP = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="6" width="11" height="11" rx="2.5"/></svg>';
+
   function addBubble(text, who = 'bot', source = '', animate = false, imgData = null, skipLog = false) {
     if (!skipLog) { renderLog.push({ who, text, source, imgData }); persistCurrentSession(); }
 
@@ -565,11 +587,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const content = document.createElement('div');
     bubble.appendChild(content);
-
-    const ICON_COPY  = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
-    const ICON_CHECK = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><polyline points="20 6 9 17 4 12"/></svg>';
-    const ICON_LIKE  = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3z"/><path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>';
-    const ICON_DISLIKE = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3z"/><path d="M17 2h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"/></svg>';
 
     function copyToClipboard(str, btn, toastMsg) {
       navigator.clipboard?.writeText(str);
@@ -634,6 +651,22 @@ document.addEventListener('DOMContentLoaded', () => {
         const dislikeBtn = document.createElement('button'); dislikeBtn.className = 'msg-action-btn'; dislikeBtn.title = 'Bad response';
         dislikeBtn.innerHTML = ICON_DISLIKE;
 
+        const speakBtn = document.createElement('button'); speakBtn.className = 'msg-action-btn'; speakBtn.title = 'Read aloud';
+        speakBtn.innerHTML = ICON_SPEAKER;
+        speakBtn.addEventListener('click', () => {
+          const wasSpeakingThis = speakBtn.classList.contains('speaking');
+          speechSynthesis.cancel();
+          if (activeSpeakBtn && activeSpeakBtn !== speakBtn) { activeSpeakBtn.classList.remove('speaking'); activeSpeakBtn.innerHTML = ICON_SPEAKER; }
+          activeSpeakBtn = null;
+          vibrate(6);
+          if (wasSpeakingThis) { speakBtn.classList.remove('speaking'); speakBtn.innerHTML = ICON_SPEAKER; return; }
+          speakBtn.classList.add('speaking'); speakBtn.innerHTML = ICON_STOP; activeSpeakBtn = speakBtn;
+          speak(text, () => {
+            speakBtn.classList.remove('speaking'); speakBtn.innerHTML = ICON_SPEAKER;
+            if (activeSpeakBtn === speakBtn) activeSpeakBtn = null;
+          }, true);
+        });
+
         likeBtn.addEventListener('click', () => {
           const wasLiked = likeBtn.classList.contains('liked');
           likeBtn.classList.toggle('liked', !wasLiked);
@@ -649,9 +682,9 @@ document.addEventListener('DOMContentLoaded', () => {
           if (!wasDisliked) showToast('Thanks — we\u2019ll use this to improve');
         });
 
-        actions.appendChild(copyBtn); actions.appendChild(likeBtn); actions.appendChild(dislikeBtn);
+        actions.appendChild(copyBtn); actions.appendChild(speakBtn); actions.appendChild(likeBtn); actions.appendChild(dislikeBtn);
         bubble.appendChild(actions);
-        attachRipple(copyBtn); attachRipple(likeBtn); attachRipple(dislikeBtn);
+        attachRipple(copyBtn); attachRipple(speakBtn); attachRipple(likeBtn); attachRipple(dislikeBtn);
       } else if (who === 'user' && text) {
         const actions = document.createElement('div'); actions.className = 'msg-actions';
         const copyBtn = document.createElement('button'); copyBtn.className = 'msg-action-btn'; copyBtn.title = 'Copy message';
@@ -691,6 +724,61 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   function removeTyping() { document.getElementById('mTypingRow')?.remove(); }
 
+  // ── Image-generation "drawing" placeholder — shimmering canvas with a sweeping brush glow ──
+  function addImageGenerating(prompt) {
+    const row = document.createElement('div');
+    row.className = 'row bot'; row.id = 'mImageGenRow';
+    row.innerHTML = `
+      <div class="bubble img-gen-bubble">
+        <div class="img-gen-canvas">
+          <div class="img-gen-shimmer"></div>
+          <div class="img-gen-sweep"></div>
+          <div class="img-gen-icon">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+          </div>
+        </div>
+        <div class="img-gen-label"><span class="img-gen-dot"></span>Painting your image…</div>
+      </div>`;
+    chat.appendChild(row); chat.scrollTop = chat.scrollHeight;
+  }
+  function removeImageGenerating() { document.getElementById('mImageGenRow')?.remove(); }
+
+  function addImageBubble(dataUrl, prompt, skipLog = false) {
+    if (!skipLog) {
+      renderLog.push({ who: 'bot', text: '', source: '', imgData: null, genImg: dataUrl, genPrompt: prompt });
+      persistCurrentSession();
+    }
+
+    const row = document.createElement('div'); row.className = 'row bot';
+    const bubble = document.createElement('div'); bubble.className = 'bubble img-result-bubble';
+
+    const img = document.createElement('img');
+    img.src = dataUrl; img.className = 'gen-img'; img.alt = prompt; img.loading = 'lazy';
+    img.addEventListener('click', () => window.open(dataUrl, '_blank'));
+    bubble.appendChild(img);
+
+    const caption = document.createElement('div'); caption.className = 'gen-caption';
+    caption.textContent = prompt;
+    bubble.appendChild(caption);
+
+    const actions = document.createElement('div'); actions.className = 'msg-actions';
+    const dlBtn = document.createElement('button'); dlBtn.className = 'msg-action-btn'; dlBtn.title = 'Download image';
+    dlBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>';
+    dlBtn.addEventListener('click', () => {
+      const a = document.createElement('a');
+      a.href = dataUrl; a.download = `eka-image-${Date.now()}.jpg`;
+      document.body.appendChild(a); a.click(); a.remove();
+      vibrate(6);
+    });
+    actions.appendChild(dlBtn);
+    bubble.appendChild(actions);
+    attachRipple(dlBtn);
+
+    row.appendChild(bubble);
+    chat.appendChild(row);
+    chat.scrollTop = chat.scrollHeight;
+  }
+
   function setStatus(state) {
     const dot = mStatus.querySelector('.status-dot');
     dot.className = 'status-dot' + (state !== 'ready' ? ` ${state}` : '');
@@ -709,6 +797,38 @@ document.addEventListener('DOMContentLoaded', () => {
     const cleaned = (text || '').trim();
     if (!cleaned && !attachedImage) return;
     if (isThinking) return;
+
+    // ── Image generation mode: typed text is a drawing prompt, not a chat message ──
+    if (imageGenEnabled && !attachedImage) {
+      if (!cleaned) return;
+      suggestionRow.innerHTML = '';
+      renderLog.push({ who: 'user', text: cleaned, source: '', imgData: null });
+      addBubble(cleaned, 'user');
+      mMsg.value = ''; autoGrow();
+      playBeep(520, 0.07); vibrate(10);
+      addImageGenerating(cleaned); isThinking = true; setStatus('thinking');
+      mSend.disabled = true;
+
+      try {
+        const res = await fetch('/api/image', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt: cleaned })
+        }).then(r => r.json());
+
+        removeImageGenerating(); isThinking = false; mSend.disabled = false; setStatus('ready');
+
+        if (res.image) {
+          addImageBubble(res.image, cleaned);
+          vibrate(14);
+        } else {
+          addBubble(res.error || 'Image generation failed — please try again.', 'bot');
+        }
+      } catch {
+        removeImageGenerating(); isThinking = false; mSend.disabled = false; setStatus('ready');
+        addBubble('Something went wrong generating that image. Please try again.', 'bot');
+      }
+      return;
+    }
 
     suggestionRow.innerHTML = '';
     const imageToSend = attachedImage;
@@ -851,7 +971,10 @@ document.addEventListener('DOMContentLoaded', () => {
     utter.onerror = () => { speakGrid.hidden = true; onEnd?.(); };
     speechSynthesis.speak(utter);
   }
-  sgStop.addEventListener('click', () => { speechSynthesis.cancel(); speakGrid.hidden = true; setStatus('ready'); vibrate(6); });
+  sgStop.addEventListener('click', () => {
+    speechSynthesis.cancel(); speakGrid.hidden = true; setStatus('ready'); vibrate(6);
+    if (activeSpeakBtn) { activeSpeakBtn.classList.remove('speaking'); activeSpeakBtn.innerHTML = ICON_SPEAKER; activeSpeakBtn = null; }
+  });
 
   rowVoice.addEventListener('click', () => openPicker(pickVoiceOverlay, voiceOptions, selectedVoiceURI, (val) => {
     selectedVoiceURI = val; savePrefs(); updateVoiceSub();
@@ -974,6 +1097,26 @@ document.addEventListener('DOMContentLoaded', () => {
     swWeb.checked = webSearchEnabled;
     savePrefs();
     showToast(webSearchEnabled ? 'Web search on' : 'Web search off');
+    vibrate(6);
+  });
+
+  btnImageToggle.addEventListener('click', () => {
+    imageGenEnabled = !imageGenEnabled;
+    btnImageToggle.classList.toggle('active', imageGenEnabled);
+    btnImageToggle.setAttribute('aria-pressed', String(imageGenEnabled));
+    swImage.checked = imageGenEnabled;
+    mMsg.placeholder = imageGenEnabled ? 'Describe the image to generate…' : 'Message Eka…';
+    savePrefs();
+    showToast(imageGenEnabled ? 'Image generation on — describe what to create' : 'Image generation off');
+    vibrate(6);
+  });
+
+  swImage.addEventListener('change', () => {
+    imageGenEnabled = swImage.checked;
+    btnImageToggle.classList.toggle('active', imageGenEnabled);
+    btnImageToggle.setAttribute('aria-pressed', String(imageGenEnabled));
+    mMsg.placeholder = imageGenEnabled ? 'Describe the image to generate…' : 'Message Eka…';
+    savePrefs();
     vibrate(6);
   });
 

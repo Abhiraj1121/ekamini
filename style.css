@@ -352,6 +352,8 @@ button{ touch-action:manipulation; cursor:pointer; background:none; border:none;
 .msg-action-btn.copied{ color:var(--md-success); }
 .msg-action-btn.liked{ color:var(--md-success); background:color-mix(in srgb, var(--md-success) 18%, var(--md-surface-2)); }
 .msg-action-btn.disliked{ color:var(--md-error); background:color-mix(in srgb, var(--md-error) 16%, var(--md-surface-2)); }
+.msg-action-btn.speaking{ color:var(--md-on-primary-container); background:var(--md-primary-container); animation:speakPulse 1.1s ease-in-out infinite; }
+@keyframes speakPulse{ 0%,100%{ box-shadow:0 0 0 0 color-mix(in srgb, var(--md-primary) 35%, transparent); } 50%{ box-shadow:0 0 0 5px transparent; } }
 
 /* ── Code blocks: header bar with language tag + copy button ── */
 .code-block{ margin:8px 0; border-radius:12px; overflow:hidden; background:color-mix(in srgb, var(--md-on-surface) 6%, transparent);
@@ -373,6 +375,34 @@ button{ touch-action:manipulation; cursor:pointer; background:none; border:none;
 .typing-dot:nth-child(2){ animation-delay:0.15s; background:var(--md-tertiary); }
 .typing-dot:nth-child(3){ animation-delay:0.3s; background:var(--md-success); }
 @keyframes tdBounce{ 0%,60%,100%{ transform:translateY(0); opacity:0.5; } 30%{ transform:translateY(-5px); opacity:1; } }
+
+/* ── Image generation: "painting" placeholder shown while an image is being drawn ── */
+.img-gen-bubble{ background:var(--md-surface-2); border-bottom-left-radius:6px; padding:12px; display:flex; flex-direction:column; gap:9px; }
+.img-gen-canvas{ position:relative; width:220px; max-width:60vw; aspect-ratio:1/1; border-radius:14px; overflow:hidden;
+  background:linear-gradient(135deg, var(--md-surface-3), var(--md-surface-4)); }
+.img-gen-shimmer{ position:absolute; inset:0;
+  background:linear-gradient(110deg,
+    color-mix(in srgb, var(--md-primary) 10%, transparent) 20%,
+    color-mix(in srgb, var(--md-tertiary) 22%, transparent) 40%,
+    color-mix(in srgb, var(--md-primary) 10%, transparent) 60%);
+  background-size:250% 100%; animation:imgShimmer 2.2s ease-in-out infinite; }
+@keyframes imgShimmer{ 0%{ background-position:150% 0; } 100%{ background-position:-50% 0; } }
+.img-gen-sweep{ position:absolute; top:0; bottom:0; width:36%;
+  background:linear-gradient(90deg, transparent, color-mix(in srgb, var(--md-primary) 55%, transparent), transparent);
+  filter:blur(6px); animation:imgSweep 1.9s cubic-bezier(0.4,0,0.2,1) infinite; opacity:0.85; }
+@keyframes imgSweep{ 0%{ left:-40%; } 100%{ left:104%; } }
+.img-gen-icon{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+  color:color-mix(in srgb, var(--md-on-surface) 55%, transparent); animation:imgIconPulse 1.6s ease-in-out infinite; }
+@keyframes imgIconPulse{ 0%,100%{ transform:scale(0.92); opacity:0.55; } 50%{ transform:scale(1.05); opacity:0.95; } }
+.img-gen-label{ display:flex; align-items:center; gap:7px; font-size:12.5px; color:var(--md-on-surface-variant); font-weight:500; }
+.img-gen-dot{ width:6px; height:6px; border-radius:50%; background:var(--md-primary); animation:tdBounce 1.1s ease-in-out infinite; flex-shrink:0; }
+
+/* ── Generated image result bubble ── */
+.img-result-bubble{ padding:8px; }
+.img-result-bubble .gen-img{ display:block; width:220px; max-width:65vw; border-radius:14px; cursor:zoom-in;
+  transition:opacity var(--t-fast) var(--std), transform var(--t-fast) var(--spring); }
+.img-result-bubble .gen-img:active{ transform:scale(0.98); opacity:0.9; }
+.img-result-bubble .gen-caption{ font-size:11.5px; font-style:italic; color:var(--md-on-surface-variant); padding:8px 6px 2px; }
 
 .suggestion-row{ display:flex; gap:8px; overflow-x:auto; padding:0 14px 10px; z-index:10; -webkit-overflow-scrolling:touch; }
 .suggestion-row:empty{ display:none; }
