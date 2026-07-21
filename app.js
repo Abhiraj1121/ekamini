@@ -810,7 +810,7 @@ document.addEventListener('DOMContentLoaded', () => {
       mSend.disabled = true;
 
       try {
-        const res = await fetch('/api/image', {
+        const res = await fetch('https://ekamini.onrender.com/api/image', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ prompt: cleaned })
         }).then(r => r.json());
