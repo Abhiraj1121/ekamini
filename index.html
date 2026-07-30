@@ -12,7 +12,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="style.css" />
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
 </head>
 <body>
 
@@ -108,7 +108,27 @@
       </button>
     </div>
 
-    <section id="chat" class="chat-scroll"></section>
+    <section id="chat" class="chat-scroll">
+      <div id="chatGreeting" class="chat-greeting" hidden>
+        <div class="greeting-mark">
+          <div class="greeting-ring-orbit"></div>
+          <svg width="40" height="40" viewBox="0 0 56 56" fill="none">
+            <circle cx="28" cy="28" r="26" class="greeting-ring" stroke="url(#gGreet)" stroke-width="2.5"/>
+            <path d="M28 14 L28 28 L38 34" class="greeting-hand" stroke="url(#gGreet)" stroke-width="3.5" stroke-linecap="round" fill="none"/>
+            <defs><linearGradient id="gGreet" x1="0" y1="0" x2="56" y2="56"><stop offset="0%" stop-color="var(--md-primary)"/><stop offset="100%" stop-color="var(--md-tertiary)"/></linearGradient></defs>
+          </svg>
+        </div>
+        <h2 class="greeting-title">Hello, <span id="greetingName" class="greeting-name">there</span></h2>
+        <p class="greeting-sub">What can I help you with?</p>
+        <p class="greeting-typing">
+          <span id="greetingTypeText" class="greeting-type-text"></span><span class="greeting-caret"></span>
+        </p>
+      </div>
+    </section>
+
+    <button id="btnScrollBottom" class="scroll-bottom-btn" aria-label="Scroll to latest message" hidden>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><polyline points="6 9 12 15 18 9"/></svg>
+    </button>
 
     <div class="suggestion-row" id="suggestionRow"></div>
 
@@ -245,6 +265,48 @@
         </div>
       </div>
 
+      <!-- Chat behavior -->
+      <div class="settings-section">
+        <div class="settings-label">Chat behavior</div>
+        <div class="settings-card">
+          <div class="setting-row">
+            <div class="setting-row-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 10h.01M15 10h.01M9.5 15a3.5 3.5 0 0 0 5 0"/><rect x="3" y="4" width="18" height="14" rx="3"/><path d="M8 21h8"/></svg></div>
+            <div class="setting-row-text">
+              <div class="setting-row-title">Send with Enter</div>
+              <div class="setting-row-sub">Enter sends · Shift+Enter for a new line</div>
+            </div>
+            <label class="m-switch"><input type="checkbox" id="swEnterSend" checked/><span></span></label>
+          </div>
+          <div class="setting-divider"></div>
+          <div class="setting-row">
+            <div class="setting-row-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12l7 7 7-7"/></svg></div>
+            <div class="setting-row-text">
+              <div class="setting-row-title">Auto-scroll to latest</div>
+              <div class="setting-row-sub">Jump to new messages as they arrive</div>
+            </div>
+            <label class="m-switch"><input type="checkbox" id="swAutoScroll" checked/><span></span></label>
+          </div>
+          <div class="setting-divider"></div>
+          <div class="setting-row">
+            <div class="setting-row-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 15"/></svg></div>
+            <div class="setting-row-text">
+              <div class="setting-row-title">Show timestamps</div>
+              <div class="setting-row-sub">Display send time on every message</div>
+            </div>
+            <label class="m-switch"><input type="checkbox" id="swTimestamps"/><span></span></label>
+          </div>
+          <div class="setting-divider"></div>
+          <div class="setting-row">
+            <div class="setting-row-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="M9 9h6v6H9z"/></svg></div>
+            <div class="setting-row-text">
+              <div class="setting-row-title">Compact bubbles</div>
+              <div class="setting-row-sub">Tighter spacing for message bubbles</div>
+            </div>
+            <label class="m-switch"><input type="checkbox" id="swCompact"/><span></span></label>
+          </div>
+        </div>
+      </div>
+
       <!-- Voice & sound -->
       <div class="settings-section">
         <div class="settings-label">Voice &amp; sound</div>
@@ -329,11 +391,33 @@
         </div>
       </div>
 
+      <!-- About -->
+      <div class="settings-section">
+        <div class="settings-label">About</div>
+        <div class="settings-card">
+          <button class="setting-row action" id="btnKeyboardShortcuts">
+            <div class="setting-row-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/></svg></div>
+            <div class="setting-row-text"><div class="setting-row-title">Keyboard shortcuts</div><div class="setting-row-sub">See what's available while typing</div></div>
+            <svg class="chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+          <div class="setting-divider"></div>
+          <button class="setting-row action" id="btnSendFeedback">
+            <div class="setting-row-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
+            <div class="setting-row-text"><div class="setting-row-title">Send feedback</div><div class="setting-row-sub">Tell us what to improve</div></div>
+          </button>
+          <div class="setting-divider"></div>
+          <div class="setting-row">
+            <div class="setting-row-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 16v-4M12 8h.01"/></svg></div>
+            <div class="setting-row-text"><div class="setting-row-title">Version</div><div class="setting-row-sub">Eka AI · 2.1 · Material You</div></div>
+          </div>
+        </div>
+      </div>
+
       <div class="settings-foot">
         <div class="foot-mark">
           <svg width="22" height="22" viewBox="0 0 56 56" fill="none"><circle cx="28" cy="28" r="26" stroke="var(--md-primary)" stroke-width="2.5"/><path d="M28 14 L28 28 L38 34" stroke="var(--md-primary)" stroke-width="3.5" stroke-linecap="round" fill="none"/></svg>
         </div>
-        <div>Eka AI · Version 2.0 · Material You</div>
+        <div>Eka AI · Version 2.1 · Material You</div>
       </div>
     </div>
   </div>
@@ -430,6 +514,21 @@
     </div>
   </div>
 
+  <!-- ── Bottom-sheet: keyboard shortcuts ── -->
+  <div class="sheet-scrim" id="pickShortcutsOverlay">
+    <div class="sheet sheet-picker" id="pickShortcutsSheet">
+      <div class="sheet-handle"></div>
+      <div class="picker-title">Shortcuts</div>
+      <div class="shortcuts-list">
+        <div class="shortcut-row"><span>Send message</span><kbd>Enter</kbd></div>
+        <div class="shortcut-row"><span>New line</span><kbd>Shift</kbd><kbd>Enter</kbd></div>
+        <div class="shortcut-row"><span>Stop response</span><span class="shortcut-note">Tap the stop button</span></div>
+        <div class="shortcut-row"><span>Regenerate reply</span><span class="shortcut-note">Tap the regenerate icon</span></div>
+        <div class="shortcut-row"><span>New chat</span><span class="shortcut-note">Tap + in the top bar</span></div>
+      </div>
+    </div>
+  </div>
+
   <!-- ── Chat history full list sheet ── -->
   <div class="sheet-scrim" id="mHistoryOverlay">
     <div class="sheet sheet-tall" id="mHistorySheet">
@@ -473,6 +572,6 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-<script src="app.js"></script>
+<script src="{{ url_for('static', filename='app.js') }}"></script>
 </body>
 </html>
