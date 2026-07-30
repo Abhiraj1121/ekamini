@@ -2,7 +2,6 @@
    EKA — Material You Design System
    Dynamic color, tonal elevation, expressive motion (M3-style)
    ══════════════════════════════════════════════════════════ */
-
 :root{
   /* ── Motion (Material 3 emphasized + standard easings) ── */
   --em:        cubic-bezier(0.2, 0, 0, 1);      /* emphasized decelerate */
