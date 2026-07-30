@@ -147,7 +147,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let activeAbortController = null;
   let lastRegenBtn = null;         // regenerate button on the most recent bot bubble
 
-  const API_ENDPOINT = '/api/chat';
+  const API_ENDPOINT = 'https://ekamini.onrender.com/api/chat';
   const ORIGINAL_SEND_ICON = '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>';
   const ICON_STOP_SEND = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="3"/></svg>';
   const ICON_REGEN = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><polyline points="23 20 23 14 17 14"/><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4-4.64 4.36A9 9 0 0 1 3.51 15"/></svg>';
@@ -993,7 +993,7 @@ document.addEventListener('DOMContentLoaded', () => {
     activeAbortController = new AbortController();
 
     try {
-      const res = await fetch('/api/image', {
+      const res = await fetch('https://ekamini.onrender.com/api/image', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt }), signal: activeAbortController.signal
       }).then(r => r.json());
