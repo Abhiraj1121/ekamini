@@ -29,7 +29,6 @@ DEV_NAME   = os.getenv("DEV_NAME", "Abhi Raj Singh")
 MODELS = [
     {"id": "nvidia/nemotron-3-super-120b-a12b:free", "max_tokens": 2026, "temp": 0.65, "vision": False}, #only text
     {"id": "liquid/lfm-2.5-2.6b:free", "max_tokens": 2026, "temp": 0.65, "vision": False}, #only text
-    {"id": "inclusionai/ling-3.0-flash-vl:free", "max_tokens": 2026, "temp": 0.65, "vision": True}, #image redy
 ]
 
 # ── System prompts ──
