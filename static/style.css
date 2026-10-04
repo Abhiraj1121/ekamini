@@ -585,7 +585,14 @@ button{ touch-action:manipulation; cursor:pointer; background:none; border:none;
 .settings-card{ background:var(--md-surface-2); border-radius:var(--sh-lg); overflow:hidden; }
 .setting-row{ width:100%; display:flex; align-items:center; gap:14px; padding:14px 16px; text-align:left;
   transition:background var(--t-fast) var(--std); }
-button.setting-row.action:active{ background:var(--md-surface-3); }
+a.setting-row{
+  text-decoration: none;
+  color: inherit;
+}
+button.setting-row.action:active,
+a.setting-row.action:active{
+  background: var(--md-surface-3);
+}
 .setting-row-block{ display:flex; align-items:center; gap:14px; padding:14px 16px 6px; }
 .setting-row-icon{ width:26px; height:26px; display:flex; align-items:center; justify-content:center; font-size:14px; font-weight:600; flex-shrink:0; color:var(--md-on-surface-variant); }
 .setting-row-icon svg{ width:20px; height:20px; }
